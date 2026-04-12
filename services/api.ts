@@ -259,6 +259,13 @@ export const api = {
     return mapPreferences(raw);
   },
 
+  async updatePushToken(userId: string, expoPushToken: string) {
+    return request<{ ok: boolean }>(`/users/preferences/${userId}/push-token`, {
+      method: "PATCH",
+      body: JSON.stringify({ expoPushToken }),
+    });
+  },
+
   async getDigest(userId: string): Promise<DigestResponse> {
     const raw = await request<RawDigest>(`/users/${userId}/digest`);
     return mapDigest(raw);

@@ -8,6 +8,10 @@ import React, {
   type ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
+
+import { api } from "@/services/api";
+import { registerForPushNotificationsAsync } from "@/services/notifications";
 
 type UserContextValue = {
   userId: string | null;
@@ -21,7 +25,6 @@ const STORAGE_KEY = "user:id";
 const UserContext = createContext<UserContextValue>({
   userId: null,
   isLoading: true,
-  // Default no-ops to keep consumers safe even before provider mounts
   setUserId: async () => {},
   clearUserId: async () => {},
 });
@@ -32,26 +35,55 @@ export function UserProvider({ children }: Props) {
   const [userId, setUserIdState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load the stored user id once on mount
   useEffect(() => {
     const load = async () => {
       try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        const isMongoId = /^[a-fA-F0-9]{24}$/.test(stored ?? "");
 
-      const isMongoId = /^[a-fA-F0-9]{24}$/.test(stored ?? "");
-
-      if (stored && isMongoId) {
-        setUserIdState(stored);
-      } else if (stored) {
-        await AsyncStorage.removeItem(STORAGE_KEY);
+        if (stored && isMongoId) {
+          setUserIdState(stored);
+        } else if (stored) {
+          await AsyncStorage.removeItem(STORAGE_KEY);
+        }
+      } catch (err) {
+        console.warn("Unable to load stored user id", err);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      console.warn("Unable to load stored user id", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
     load();
+  }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const registerPush = async () => {
+      try {
+        const expoPushToken = await registerForPushNotificationsAsync();
+        await api.updatePushToken(userId, expoPushToken);
+        console.log("[Push] token guardado:", expoPushToken);
+      } catch (err) {
+        console.warn("[Push] no se pudo registrar el token", err);
+      }
+    };
+
+    registerPush();
+  }, [userId]);
+
+  useEffect(() => {
+    const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("[Push] recibida en foreground:", notification);
+    });
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("[Push] usuario tocó la notificación:", response);
+    });
+
+    return () => {
+      receivedSub.remove();
+      responseSub.remove();
+    };
   }, []);
 
   const setUserId = useCallback(async (id: string) => {

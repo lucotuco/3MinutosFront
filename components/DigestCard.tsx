@@ -56,7 +56,7 @@ export function DigestCard({ item, index }: DigestCardProps) {
         </View>
       </View>
 
-      <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={3}>
+      <Text style={[styles.title, { color: colors.foreground }]}>
         {item.title}
       </Text>
 
