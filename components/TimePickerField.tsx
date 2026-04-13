@@ -149,6 +149,8 @@ export function TimePickerField({
               display="spinner"
               onChange={handleIosChange}
               style={s.iosPicker}
+              themeVariant="light"
+              textColor={colors.foreground}
             />
           </View>
         </View>
