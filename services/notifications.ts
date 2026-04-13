@@ -13,6 +13,8 @@ Notifications.setNotificationHandler({
 });
 
 export async function registerForPushNotificationsAsync() {
+  console.log("[Push] arrancando registro");
+
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
@@ -20,18 +22,24 @@ export async function registerForPushNotificationsAsync() {
       vibrationPattern: [0, 250, 250, 250],
       lightColor: "#FF231F7C",
     });
+    console.log("[Push] canal android creado");
   }
+
+  console.log("[Push] Device.isDevice:", Device.isDevice);
 
   if (!Device.isDevice) {
     throw new Error("Las push remotas requieren un dispositivo real.");
   }
 
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  let finalStatus = existingStatus;
+  const permsBefore = await Notifications.getPermissionsAsync();
+  console.log("[Push] permisos antes:", permsBefore);
 
-  if (existingStatus !== "granted") {
-    const { status } = await Notifications.requestPermissionsAsync();
-    finalStatus = status;
+  let finalStatus = permsBefore.status;
+
+  if (finalStatus !== "granted") {
+    const permsAfter = await Notifications.requestPermissionsAsync();
+    console.log("[Push] permisos después:", permsAfter);
+    finalStatus = permsAfter.status;
   }
 
   if (finalStatus !== "granted") {
@@ -42,15 +50,19 @@ export async function registerForPushNotificationsAsync() {
     Constants?.expoConfig?.extra?.eas?.projectId ??
     Constants?.easConfig?.projectId;
 
+  console.log("[Push] projectId:", projectId);
+  console.log("[Push] expoConfig?.extra:", Constants?.expoConfig?.extra);
+  console.log("[Push] easConfig:", Constants?.easConfig);
+
   if (!projectId) {
     throw new Error("No se encontró el projectId de EAS.");
   }
 
-  const token = (
-    await Notifications.getExpoPushTokenAsync({
-      projectId,
-    })
-  ).data;
+  const tokenResponse = await Notifications.getExpoPushTokenAsync({
+    projectId,
+  });
 
-  return token;
+  console.log("[Push] tokenResponse:", tokenResponse);
+
+  return tokenResponse.data;
 }

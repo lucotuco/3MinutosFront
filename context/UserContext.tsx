@@ -56,20 +56,27 @@ export function UserProvider({ children }: Props) {
   }, []);
 
   useEffect(() => {
-    if (!userId) return;
+  if (!userId) {
+    console.log("[Push] no hay userId, no registro token");
+    return;
+  }
 
-    const registerPush = async () => {
-      try {
-        const expoPushToken = await registerForPushNotificationsAsync();
-        await api.updatePushToken(userId, expoPushToken);
-        console.log("[Push] token guardado:", expoPushToken);
-      } catch (err) {
-        console.warn("[Push] no se pudo registrar el token", err);
-      }
-    };
+  const registerPush = async () => {
+    try {
+      console.log("[Push] intentando registrar token para userId:", userId);
 
-    registerPush();
-  }, [userId]);
+      const expoPushToken = await registerForPushNotificationsAsync();
+      console.log("[Push] token obtenido:", expoPushToken);
+
+      const response = await api.updatePushToken(userId, expoPushToken);
+      console.log("[Push] respuesta backend guardando token:", response);
+    } catch (err) {
+      console.warn("[Push] no se pudo registrar el token", err);
+    }
+  };
+
+  registerPush();
+}, [userId]);
 
   useEffect(() => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {

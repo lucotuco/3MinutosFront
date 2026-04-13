@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.lucas.threeminutos",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
@@ -39,10 +40,10 @@
       "reactCompiler": true
     },
     "extra": {
+      "router": {},
       "eas": {
         "projectId": "1861ba94-d056-4ba4-8eb3-21af1b2922da"
       }
-    },
-    "owner": "luco"
+    }
   }
 }

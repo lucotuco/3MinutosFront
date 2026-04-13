@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "413961856748",
+    "project_id": "minutos-ba7f6",
+    "storage_bucket": "minutos-ba7f6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:413961856748:android:40b1077b1dd4508bace7c9",
+        "android_client_info": {
+          "package_name": "com.lucas.threeminutos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6j40HlcKGZcvFQlkYV2VYcUUJVHWEq7c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

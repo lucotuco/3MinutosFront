@@ -1,14 +1,10 @@
 import * as Haptics from "expo-haptics";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Modal,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -21,6 +17,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { TimePickerField } from "@/components/TimePickerField";
 import { useColors } from "@/hooks/useColors";
 import { useUser } from "@/context/UserContext";
 import { api, UserPreferences } from "@/services/api";
@@ -34,14 +31,6 @@ const TONES = [
   { value: "breve" as const, label: "Breve" },
 ];
 
-const ITEM_HEIGHT = 44;
-const VISIBLE_ROWS = 5;
-const PICKER_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
-const PICKER_SIDE_PADDING = (PICKER_HEIGHT - ITEM_HEIGHT) / 2;
-
-const HOURS = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, "0"));
-const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, "0"));
-
 function parseDeliveryTime(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
   if (!match) {
@@ -51,92 +40,6 @@ function parseDeliveryTime(value: string) {
     hour: match[1],
     minute: match[2],
   };
-}
-
-type WheelColumnProps = {
-  data: string[];
-  value: string;
-  onChange: (value: string) => void;
-  colors: ReturnType<typeof useColors>;
-};
-
-function WheelColumn({ data, value, onChange, colors }: WheelColumnProps) {
-  const scrollRef = useRef<ScrollView>(null);
-  const lastSentRef = useRef(value);
-
-  const selectedIndex = useMemo(
-    () => Math.max(0, data.findIndex((item) => item === value)),
-    [data, value]
-  );
-
-  useEffect(() => {
-    const offset = selectedIndex * ITEM_HEIGHT;
-    requestAnimationFrame(() => {
-      scrollRef.current?.scrollTo({ y: offset, animated: false });
-    });
-  }, [selectedIndex]);
-
-  const commitIndex = async (index: number) => {
-    const safeIndex = Math.max(0, Math.min(index, data.length - 1));
-    const nextValue = data[safeIndex];
-
-    scrollRef.current?.scrollTo({
-      y: safeIndex * ITEM_HEIGHT,
-      animated: true,
-    });
-
-    if (nextValue !== lastSentRef.current) {
-      lastSentRef.current = nextValue;
-      onChange(nextValue);
-      try {
-        await Haptics.selectionAsync();
-      } catch {}
-    }
-  };
-
-  const handleMomentumEnd = async (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = e.nativeEvent.contentOffset.y;
-    const index = Math.round(offsetY / ITEM_HEIGHT);
-    await commitIndex(index);
-  };
-
-  return (
-    <View style={baseStyles.wheelColumn}>
-      <ScrollView
-        ref={scrollRef}
-        nestedScrollEnabled
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        snapToInterval={ITEM_HEIGHT}
-        snapToAlignment="center"
-        decelerationRate="fast"
-        onMomentumScrollEnd={handleMomentumEnd}
-        contentContainerStyle={{
-          paddingVertical: PICKER_SIDE_PADDING,
-        }}
-      >
-        {data.map((item) => {
-          const selected = item === value;
-          return (
-            <View key={item} style={[baseStyles.wheelItem, { height: ITEM_HEIGHT }]}>
-              <Text
-                style={[
-                  baseStyles.wheelText,
-                  {
-                    color: selected ? colors.foreground : colors.mutedForeground,
-                    opacity: selected ? 1 : 0.45,
-                    fontFamily: selected ? "Inter_700Bold" : "Inter_400Regular",
-                  },
-                ]}
-              >
-                {item}
-              </Text>
-            </View>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
 }
 
 export default function ProfileScreen() {
@@ -150,8 +53,6 @@ export default function ProfileScreen() {
   const [tone, setTone] = useState<UserPreferences["tone"]>("neutro");
   const [selectedHour, setSelectedHour] = useState("08");
   const [selectedMinute, setSelectedMinute] = useState("00");
-  const [draftHour, setDraftHour] = useState("08");
-  const [draftMinute, setDraftMinute] = useState("00");
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -177,8 +78,6 @@ export default function ProfileScreen() {
       const parsed = parseDeliveryTime(data.deliveryTime ?? "08:00");
       setSelectedHour(parsed.hour);
       setSelectedMinute(parsed.minute);
-      setDraftHour(parsed.hour);
-      setDraftMinute(parsed.minute);
       setIsActive(data.isActive ?? true);
       setIsDirty(false);
     }
@@ -194,8 +93,6 @@ export default function ProfileScreen() {
   };
 
   const openTimeModal = () => {
-    setDraftHour(selectedHour);
-    setDraftMinute(selectedMinute);
     setTimeModalVisible(true);
   };
 
@@ -203,9 +100,10 @@ export default function ProfileScreen() {
     setTimeModalVisible(false);
   };
 
-  const confirmTimeSelection = async () => {
-    setSelectedHour(draftHour);
-    setSelectedMinute(draftMinute);
+  const confirmTimeSelection = async (nextValue: string) => {
+    const [h, m] = nextValue.split(":");
+    setSelectedHour(h || "08");
+    setSelectedMinute(m || "00");
     setTimeModalVisible(false);
     markDirty();
     try {
@@ -436,108 +334,15 @@ export default function ProfileScreen() {
         )}
       </KeyboardAvoidingView>
 
-      <Modal
-  visible={timeModalVisible}
-  transparent
-  animationType="fade"
-  onRequestClose={closeTimeModal}
->
-  <View style={s.modalRoot}>
-    <Pressable style={s.modalBackdrop} onPress={closeTimeModal} />
-
-    <View
-      style={[
-        s.modalSheet,
-        {
-          backgroundColor: colors.background,
-          borderColor: colors.border,
-          paddingBottom: Math.max(insets.bottom, 16),
-        },
-      ]}
-    >
-      <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={closeTimeModal} hitSlop={10}>
-          <Text style={[s.modalCancel, { color: colors.mutedForeground }]}>Cancelar</Text>
-        </TouchableOpacity>
-
-        <Text style={[s.modalTitle, { color: colors.foreground }]}>Horario de entrega</Text>
-
-        <TouchableOpacity onPress={confirmTimeSelection} hitSlop={10}>
-          <Text style={[s.modalDone, { color: colors.primary }]}>Listo</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={[s.timePreview, { backgroundColor: colors.secondary, alignSelf: "center" }]}>
-        <Feather name="clock" size={14} color={colors.mutedForeground} />
-        <Text style={[s.timePreviewText, { color: colors.foreground }]}>
-          {draftHour}:{draftMinute}
-        </Text>
-      </View>
-
-      <View
-        style={[
-          s.wheelCard,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        <View
-          pointerEvents="none"
-          style={[
-            s.wheelSelectionOverlay,
-            {
-              top: Math.round((PICKER_HEIGHT - ITEM_HEIGHT) / 2),
-              height: ITEM_HEIGHT,
-              backgroundColor: `${colors.primary}12`,
-              borderColor: `${colors.primary}35`,
-            },
-          ]}
-        />
-
-        <View style={s.wheelRow}>
-          <WheelColumn
-            data={HOURS}
-            value={draftHour}
-            onChange={setDraftHour}
-            colors={colors}
-          />
-
-          <Text style={[s.wheelSeparator, { color: colors.foreground }]}>:</Text>
-
-          <WheelColumn
-            data={MINUTES}
-            value={draftMinute}
-            onChange={setDraftMinute}
-            colors={colors}
-          />
-        </View>
-      </View>
-    </View>
-  </View>
-</Modal>
+      <TimePickerField
+        visible={timeModalVisible}
+        value={deliveryTime}
+        onClose={closeTimeModal}
+        onConfirm={confirmTimeSelection}
+      />
     </>
   );
 }
-
-const baseStyles = StyleSheet.create({
-  wheelColumn: {
-    flex: 1,
-    height: PICKER_HEIGHT,
-  },
-  wheelItem: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  wheelText: {
-    fontSize: 24,
-    lineHeight: 24,
-    textAlign: "center",
-    includeFontPadding: false,
-    letterSpacing: 0.3,
-  },
-});
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
@@ -599,20 +404,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 14,
       fontFamily: "Inter_500Medium",
     },
-    timePreview: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      borderRadius: 999,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      marginBottom: 12,
-    },
-    timePreviewText: {
-      fontSize: 16,
-      fontFamily: "Inter_700Bold",
-      letterSpacing: 0.4,
-    },
     timeRowButton: {
       borderWidth: 1,
       borderRadius: 16,
@@ -654,31 +445,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 16,
       fontFamily: "Inter_700Bold",
       letterSpacing: 0.3,
-    },
-    wheelCard: {
-      borderWidth: 1,
-      borderRadius: 20,
-      paddingHorizontal: 10,
-      position: "relative",
-      overflow: "hidden",
-    },
-    wheelRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      height: PICKER_HEIGHT,
-    },
-    wheelSeparator: {
-      fontSize: 28,
-      fontFamily: "Inter_700Bold",
-      paddingHorizontal: 10,
-      opacity: 0.9,
-    },
-    wheelSelectionOverlay: {
-      position: "absolute",
-      left: 10,
-      right: 10,
-      borderRadius: 14,
-      borderWidth: 1,
     },
     activeRow: {
       flexDirection: "row",
@@ -723,39 +489,4 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 15,
       fontFamily: "Inter_500Medium",
     },
-    modalBackdrop: {
-      ...StyleSheet.absoluteFillObject,
-      backgroundColor: "rgba(0,0,0,0.35)",
-    },
-    modalSheet: {
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      borderTopWidth: 1,
-      paddingTop: 10,
-      paddingHorizontal: 16,
-    },
-    modalHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      borderBottomWidth: 1,
-      paddingBottom: 12,
-      marginBottom: 14,
-    },
-    modalTitle: {
-      fontSize: 16,
-      fontFamily: "Inter_700Bold",
-    },
-    modalCancel: {
-      fontSize: 15,
-      fontFamily: "Inter_500Medium",
-    },
-    modalDone: {
-      fontSize: 15,
-      fontFamily: "Inter_700Bold",
-    },
-    modalRoot: {
-  flex: 1,
-  justifyContent: "flex-end",
-},
   });
