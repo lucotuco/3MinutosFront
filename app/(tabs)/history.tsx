@@ -62,7 +62,6 @@ function ArticleRow({ item }: { item: ShownArticle }) {
       ) : null}
 
       <Text style={[s.meta, { color: colors.mutedForeground }]}>
-        <Feather name="feather" size={11} /> {item.tone}
         {item.section ? ` · ${item.section}` : ""}
         {item.region ? ` · ${item.region}` : ""}
       </Text>

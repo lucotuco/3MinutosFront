@@ -1,26 +1,27 @@
+import { Feather } from "@expo/vector-icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useColors } from "@/hooks/useColors";
-import { useUser } from "@/context/UserContext";
-import { api } from "@/services/api";
 import { DigestCard } from "@/components/DigestCard";
-import { LoadingState } from "@/components/LoadingState";
-import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
+import { useUser } from "@/context/UserContext";
+import { useColors } from "@/hooks/useColors";
+import { api } from "@/services/api";
+import { Audio } from "expo-av";
 
 export default function DigestScreen() {
   const colors = useColors();
@@ -29,14 +30,10 @@ export default function DigestScreen() {
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
   const lastMarkedKeyRef = useRef<string | null>(null);
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+const [playing, setPlaying] = useState(false);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["digest", userId],
     queryFn: () => api.getDigest(userId!),
     enabled: !!userId,
@@ -47,22 +44,48 @@ export default function DigestScreen() {
     if (!userId || !data?.digest?.items?.length) return;
 
     const markKey = JSON.stringify({
-      tone: data.digest.tone,
-      items: data.digest.items.map((item) => ({
-        articleId: item.articleId ?? "",
-        url: item.url ?? "",
-        topic: item.topic ?? "",
-      })),
-    });
-
+  items: data.digest.items.map((item) => ({
+    articleId: item.articleId ?? "",
+    url: item.url ?? "",
+    topic: item.topic ?? "",
+  })),
+});
     if (lastMarkedKeyRef.current === markKey) return;
     lastMarkedKeyRef.current = markKey;
 
     api.markDigestShown(userId, {
-      items: data.digest.items,
-      tone: data.digest.tone,
-    }).catch(() => {});
+  items: data.digest.items,
+}).catch(() => {});
   }, [userId, data]);
+
+  const handlePlayDigest = async () => {
+  try {
+    if (!data?.digest?.audioUrl) return;
+
+    if (sound) {
+      await sound.unloadAsync();
+      setSound(null);
+      setPlaying(false);
+    }
+
+    const { sound: newSound } = await Audio.Sound.createAsync(
+      { uri: data.digest.audioUrl },
+      { shouldPlay: true }
+    );
+
+    setSound(newSound);
+    setPlaying(true);
+
+    newSound.setOnPlaybackStatusUpdate((status) => {
+      if (!status.isLoaded) return;
+      if (status.didJustFinish) {
+        setPlaying(false);
+      }
+    });
+  } catch (error) {
+    console.log("Error reproduciendo digest:", error);
+  }
+};
 
   const handleRefresh = useCallback(async () => {
     if (!userId) return;
@@ -79,8 +102,15 @@ export default function DigestScreen() {
   }, [userId, queryClient]);
 
   const s = makeStyles(colors);
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const botPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
+  const topPad = Platform.OS === "web" ? 56 : insets.top;
+  const botPad =
+    Platform.OS === "web"
+      ? 110
+      : Platform.OS === "android"
+      ? insets.bottom + 130
+      : insets.bottom + 110;
+
+  const displayName = data?.user?.name ? `, ${data.user.name}` : "";
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
@@ -88,20 +118,24 @@ export default function DigestScreen() {
         style={[
           s.header,
           {
-            paddingTop: topPad + 16,
+            paddingTop: topPad + 8,
             backgroundColor: colors.background,
-            borderBottomColor: colors.border,
           },
         ]}
       >
-        <View style={s.headerLeft}>
-          <Text style={[s.greeting, { color: colors.mutedForeground }]}>
-            {data?.user?.name ? `Hola, ${data.user.name}` : "Tu digest"}
-          </Text>
-          <Text style={[s.headerTitle, { color: colors.foreground }]}>3 Minutos</Text>
+        <View style={s.brandRow}>
+          <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
+          <Text style={[s.logoText, { color: colors.foreground }]}>Minutos</Text>
         </View>
+
         <TouchableOpacity
-          style={[s.refreshBtn, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+          style={[
+            s.refreshBtn,
+            {
+              backgroundColor: colors.secondary,
+              borderColor: colors.border,
+            },
+          ]}
           onPress={handleRefresh}
           disabled={refreshing}
           activeOpacity={0.7}
@@ -109,7 +143,7 @@ export default function DigestScreen() {
           {refreshing ? (
             <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Feather name="refresh-cw" size={18} color={colors.primary} />
+            <Feather name="refresh-cw" size={16} color={colors.primary} />
           )}
         </TouchableOpacity>
       </View>
@@ -125,6 +159,30 @@ export default function DigestScreen() {
           />
         }
       >
+        <Text style={[s.heroText, { color: colors.foreground }]}>
+          Buen día{displayName}.
+        </Text>
+
+        <View
+          style={[
+            s.infoPill,
+            {
+              backgroundColor: colors.secondary,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <Feather name="calendar" size={13} color={colors.primary} />
+          <Text style={[s.infoText, { color: colors.accentForeground }]}>
+            Viernes 18 de abril
+          </Text>
+          <Text style={[s.infoDot, { color: colors.mutedForeground }]}>•</Text>
+          <Feather name="sun" size={13} color={colors.primary} />
+          <Text style={[s.infoText, { color: colors.accentForeground }]}>
+            23° en Buenos Aires
+          </Text>
+        </View>
+
         {isLoading && <LoadingState />}
 
         {isError && (
@@ -146,17 +204,46 @@ export default function DigestScreen() {
 
         {!isLoading && !isError && data?.digest?.items && data.digest.items.length > 0 && (
           <>
-            {data.digest.tone ? (
-              <View style={[s.toneTag, { backgroundColor: colors.secondary }]}>
-                <Feather name="feather" size={12} color={colors.mutedForeground} />
-                <Text style={[s.toneTxt, { color: colors.mutedForeground }]}>
-                  Tono: {data.digest.tone}
-                </Text>
-              </View>
-            ) : null}
-            {data.digest.items.map((item, i) => (
-              <DigestCard key={item.articleId ?? `${item.url ?? ""}-${i}`} item={item} index={i} />
+            {data.digest.items.slice(0, 3).map((item, i) => (
+              <DigestCard
+                key={item.articleId ?? `${item.url ?? ""}-${i}`}
+                item={item}
+                index={i}
+              />
             ))}
+
+            <TouchableOpacity
+  activeOpacity={0.85}
+  style={[
+    s.listenButton,
+    {
+      backgroundColor: colors.secondary,
+      borderColor: colors.border,
+      opacity: data?.digest?.audioUrl ? 1 : 0.5,
+    },
+  ]}
+  onPress={handlePlayDigest}
+  disabled={!data?.digest?.audioUrl}
+>
+  <View style={[s.playCircle, { backgroundColor: colors.primary }]}>
+    <Feather
+      name={playing ? "pause" : "play"}
+      size={16}
+      color="#FFFFFF"
+    />
+  </View>
+
+  <View style={s.listenTextWrap}>
+    <Text style={[s.listenTitle, { color: colors.foreground }]}>
+      Escuchar resumen
+    </Text>
+    <Text style={[s.listenSub, { color: colors.mutedForeground }]}>
+      {data?.digest?.audioUrl ? "Disponible" : "Generando audio"}
+    </Text>
+  </View>
+
+  <Feather name="volume-2" size={18} color={colors.primary} />
+</TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -169,46 +256,96 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     root: { flex: 1 },
     header: {
       flexDirection: "row",
-      alignItems: "flex-end",
+      alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 20,
-      paddingBottom: 16,
-      borderBottomWidth: 1,
+      paddingHorizontal: 18,
+      paddingBottom: 8,
     },
-    headerLeft: { gap: 2 },
-    greeting: {
-      fontSize: 13,
-      fontFamily: "Inter_400Regular",
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
     },
-    headerTitle: {
-      fontSize: 26,
+    logoBlue: {
+      fontSize: 24,
+      fontFamily: "Inter_700Bold",
+    },
+    logoText: {
+      fontSize: 24,
       fontFamily: "Inter_700Bold",
     },
     refreshBtn: {
-      width: 40,
-      height: 40,
+      width: 38,
+      height: 38,
       borderRadius: 12,
       borderWidth: 1,
       alignItems: "center",
       justifyContent: "center",
     },
     scroll: {
-      padding: 20,
-      gap: 0,
+      paddingHorizontal: 18,
+      paddingTop: 4,
     },
-    toneTag: {
+    heroText: {
+  fontSize: 24,
+  lineHeight: 24,
+  fontFamily: "Inter_700Bold",
+  marginBottom: 8,
+},
+heroSub: {
+  fontFamily: "Inter_400Regular",
+},
+    infoPill: {
       flexDirection: "row",
       alignItems: "center",
+      flexWrap: "wrap",
       gap: 6,
       alignSelf: "flex-start",
-      paddingHorizontal: 10,
-      paddingVertical: 5,
-      borderRadius: 20,
-      marginBottom: 16,
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginBottom: 14,
     },
-    toneTxt: {
-      fontSize: 12,
+    infoText: {
+      fontSize: 11,
+      fontFamily: "Inter_600SemiBold",
+      letterSpacing: 0.2,
+    },
+    infoDot: {
+      fontSize: 11,
+      fontFamily: "Inter_600SemiBold",
+      marginHorizontal: 2,
+    },
+    listenButton: {
+      marginTop: 2,
+      marginBottom: 6,
+      borderRadius: 18,
+      borderWidth: 1,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    playCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    listenTextWrap: {
+      flex: 1,
+    },
+    listenTitle: {
+      fontSize: 16,
+      fontFamily: "Inter_700Bold",
+    },
+    listenSub: {
+      marginTop: 1,
+      fontSize: 11,
       fontFamily: "Inter_500Medium",
-      textTransform: "capitalize",
+      textTransform: "uppercase",
+      letterSpacing: 0.3,
     },
   });

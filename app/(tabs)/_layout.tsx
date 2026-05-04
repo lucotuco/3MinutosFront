@@ -1,116 +1,100 @@
-import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, View, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "newspaper", selected: "newspaper.fill" }} />
-        <Label>Digest</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person.circle", selected: "person.circle.fill" }} />
-        <Label>Perfil</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="history">
-        <Icon sf={{ default: "clock", selected: "clock.fill" }} />
-        <Label>Historial</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
-  const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
-
-  return (
-    <Tabs
-      screenOptions={{
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.mutedForeground,
-        headerShown: false,
-        tabBarStyle: {
-          position: "absolute",
-          backgroundColor: isIOS ? "transparent" : colors.background,
-          borderTopWidth: 1,
-          borderTopColor: colors.border,
-          elevation: 0,
-          height: isWeb ? 84 : 60,
-        },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
-              style={StyleSheet.absoluteFill}
-            />
-          ) : isWeb ? (
-            <View
-              style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
-            />
-          ) : null,
-        tabBarLabelStyle: {
-          fontFamily: "Inter_500Medium",
-          fontSize: 11,
-          marginBottom: 4,
-        },
-      }}
-    >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Digest",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="newspaper" tintColor={color} size={24} />
-            ) : (
-              <Feather name="book-open" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Perfil",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.circle" tintColor={color} size={24} />
-            ) : (
-              <Feather name="user" size={22} color={color} />
-            ),
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: "Historial",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="clock" tintColor={color} size={24} />
-            ) : (
-              <Feather name="clock" size={22} color={color} />
-            ),
-        }}
-      />
-    </Tabs>
-  );
-}
-
 export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+
+  const isWeb = Platform.OS === "web";
+  const isAndroid = Platform.OS === "android";
+  const isIOS = Platform.OS === "ios";
+
+  const bottomInset = isWeb ? 0 : insets.bottom;
+  const androidLift = isAndroid ? Math.max(bottomInset, 14) : 0;
+  const barHeight = isWeb ? 82 : isIOS ? 88 : 76 + androidLift;
+
+  return (
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.mutedForeground,
+          tabBarHideOnKeyboard: true,
+          tabBarStyle: {
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: barHeight,
+            backgroundColor: colors.background,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+            paddingTop: 8,
+            paddingBottom: isWeb ? 10 : isIOS ? Math.max(bottomInset, 12) : androidLift + 8,
+            paddingHorizontal: 10,
+          },
+          tabBarItemStyle: {
+            paddingTop: isAndroid ? 4 : 0,
+          },
+          tabBarLabelStyle: {
+            fontFamily: "Inter_500Medium",
+            fontSize: 11,
+            marginBottom: isAndroid ? 4 : 4,
+          },
+          tabBarBackground: () => (
+            <View
+              style={[
+                StyleSheet.absoluteFillObject,
+                {
+                  backgroundColor: colors.background,
+                  borderTopWidth: 1,
+                  borderTopColor: colors.border,
+                },
+              ]}
+            />
+          ),
+        }}
+      >
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: "Hoy",
+            tabBarIcon: ({ color }) => (
+              <Feather name="book-open" size={20} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="history"
+          options={{
+            title: "Historial",
+            tabBarIcon: ({ color }) => (
+              <Feather name="clock" size={20} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: "Ajustes",
+            tabBarIcon: ({ color }) => (
+              <Feather name="user" size={20} color={color} />
+            ),
+          }}
+        />
+      </Tabs>
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

@@ -1,10 +1,7 @@
-type Tone = "neutro" | "cercano" | "especialista" | "breve";
-
 export type UserPreferences = {
   id?: string;
   name: string;
   topics: [string, string, string];
-  tone: Tone;
   deliveryTime: string;
   isActive: boolean;
 };
@@ -17,20 +14,18 @@ export type DigestItem = {
   region?: string | null;
   section?: string | null;
   url?: string | null;
-  tone?: string;
 };
 
 export type DigestResponse = {
   user: {
     id: string;
     name: string;
-    tone: Tone;
     deliveryTime: string;
     topics: string[];
   };
   digest: {
-    tone: string;
     items: DigestItem[];
+    audioUrl?: string;
   };
 };
 
@@ -39,25 +34,12 @@ export type ShownArticle = {
   title?: string;
   summary?: string;
   topic: string;
-  tone: string;
   region?: string;
   section?: string;
   articleUrl?: string;
   shownDate?: string;
   shownAt: string;
 };
-
-function normalizeTone(value: unknown): Tone {
-  if (
-    value === "neutro" ||
-    value === "cercano" ||
-    value === "especialista" ||
-    value === "breve"
-  ) {
-    return value;
-  }
-  return "neutro";
-}
 
 function normalizeTopics(value: unknown): [string, string, string] {
   const topics = Array.isArray(value)
@@ -114,7 +96,6 @@ function mapPreferences(raw: {
   id?: string;
   name?: string;
   topics?: unknown;
-  tone?: unknown;
   deliveryTime?: unknown;
   isActive?: unknown;
 }): UserPreferences {
@@ -122,7 +103,6 @@ function mapPreferences(raw: {
     id: String(raw._id ?? raw.id ?? ""),
     name: String(raw.name ?? ""),
     topics: normalizeTopics(raw.topics),
-    tone: normalizeTone(raw.tone),
     deliveryTime: String(raw.deliveryTime ?? "08:00"),
     isActive: Boolean(raw.isActive ?? true),
   };
@@ -132,12 +112,10 @@ type RawDigest = {
   user?: {
     id?: string;
     name?: string;
-    tone?: unknown;
     deliveryTime?: unknown;
     topics?: unknown;
   };
   digest?: {
-    tone?: unknown;
     items?: Array<{
       articleId?: string | null;
       title?: string | null;
@@ -155,14 +133,12 @@ function mapDigest(raw: RawDigest): DigestResponse {
     user: {
       id: String(raw.user?.id ?? ""),
       name: String(raw.user?.name ?? ""),
-      tone: normalizeTone(raw.user?.tone),
       deliveryTime: String(raw.user?.deliveryTime ?? "08:00"),
       topics: Array.isArray(raw.user?.topics)
         ? raw.user.topics.map((topic) => String(topic ?? ""))
         : [],
     },
     digest: {
-      tone: String(raw.digest?.tone ?? "neutro"),
       items: Array.isArray(raw.digest?.items)
         ? raw.digest.items.map((item) => ({
             articleId: item.articleId ?? undefined,
@@ -174,6 +150,7 @@ function mapDigest(raw: RawDigest): DigestResponse {
             url: item.url ?? undefined,
           }))
         : [],
+      audioUrl: raw.digest?.audioUrl ? String(raw.digest.audioUrl) : undefined,
     },
   };
 }
@@ -183,7 +160,6 @@ function mapShownArticle(raw: {
   title?: unknown;
   summary?: unknown;
   topic?: unknown;
-  tone?: unknown;
   region?: unknown;
   section?: unknown;
   articleUrl?: unknown;
@@ -195,7 +171,6 @@ function mapShownArticle(raw: {
     title: raw.title ? String(raw.title) : undefined,
     summary: raw.summary ? String(raw.summary) : undefined,
     topic: String(raw.topic ?? ""),
-    tone: String(raw.tone ?? ""),
     region: raw.region ? String(raw.region) : undefined,
     section: raw.section ? String(raw.section) : undefined,
     articleUrl: raw.articleUrl ? String(raw.articleUrl) : undefined,
@@ -211,7 +186,6 @@ export const api = {
       id?: string;
       name?: string;
       topics?: unknown;
-      tone?: unknown;
       deliveryTime?: unknown;
       isActive?: unknown;
     }>("/users/preferences", {
@@ -234,7 +208,6 @@ export const api = {
       id?: string;
       name?: string;
       topics?: unknown;
-      tone?: unknown;
       deliveryTime?: unknown;
       isActive?: unknown;
     }>(`/users/preferences/${userId}`);
@@ -248,7 +221,6 @@ export const api = {
       id?: string;
       name?: string;
       topics?: unknown;
-      tone?: unknown;
       deliveryTime?: unknown;
       isActive?: unknown;
     }>(`/users/preferences/${userId}`, {
@@ -259,40 +231,32 @@ export const api = {
     return mapPreferences(raw);
   },
 
-  async updatePushToken(userId: string, expoPushToken: string) {
-    return request<{ ok: boolean }>(`/users/preferences/${userId}/push-token`, {
-      method: "PATCH",
-      body: JSON.stringify({ expoPushToken }),
-    });
-  },
-
-  async getDigest(userId: string): Promise<DigestResponse> {
+  async getDigest(userId: string) {
     const raw = await request<RawDigest>(`/users/${userId}/digest`);
     return mapDigest(raw);
   },
 
-  async refreshDigest(userId: string): Promise<DigestResponse> {
+  async refreshDigest(userId: string) {
     const raw = await request<RawDigest>(`/users/${userId}/digest/refresh`, {
       method: "POST",
     });
     return mapDigest(raw);
   },
 
-  async markDigestShown(userId: string, payload: { items: DigestItem[]; tone: string }) {
+  async markDigestShown(userId: string, payload: { items: DigestItem[] }) {
     return request<{ ok: boolean }>(`/users/${userId}/digest/mark-shown`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
-  async getShownArticles(userId: string): Promise<ShownArticle[]> {
+  async getShownArticles(userId: string) {
     const raw = await request<
       Array<{
         articleId?: string;
         title?: unknown;
         summary?: unknown;
         topic?: unknown;
-        tone?: unknown;
         region?: unknown;
         section?: unknown;
         articleUrl?: unknown;
@@ -303,6 +267,11 @@ export const api = {
 
     return Array.isArray(raw) ? raw.map(mapShownArticle) : [];
   },
-};
 
-export default api;
+  async updatePushToken(userId: string, expoPushToken: string) {
+    return request<{ ok: boolean }>(`/users/preferences/${userId}/push-token`, {
+      method: "PATCH",
+      body: JSON.stringify({ expoPushToken }),
+    });
+  },
+};

@@ -21,13 +21,6 @@ import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
 
-const TONES = [
-  { value: "neutro" as const, label: "Neutro", desc: "Objetivo e informativo" },
-  { value: "cercano" as const, label: "Cercano", desc: "Amigable y conversacional" },
-  { value: "especialista" as const, label: "Especialista", desc: "Tecnico y detallado" },
-  { value: "breve" as const, label: "Breve", desc: "Conciso y directo" },
-];
-
 export default function OnboardingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -35,7 +28,6 @@ export default function OnboardingScreen() {
 
   const [name, setName] = useState("");
   const [topics, setTopics] = useState<[string, string, string]>(["", "", ""]);
-  const [tone, setTone] = useState<"neutro" | "cercano" | "especialista" | "breve">("neutro");
   const [selectedHour, setSelectedHour] = useState("08");
   const [selectedMinute, setSelectedMinute] = useState("00");
   const [timeModalVisible, setTimeModalVisible] = useState(false);
@@ -90,7 +82,6 @@ export default function OnboardingScreen() {
       const result = await api.createPreferences({
         name: name.trim(),
         topics: [topics[0].trim(), topics[1].trim(), topics[2].trim()],
-        tone,
         deliveryTime,
         isActive,
       });
@@ -151,7 +142,9 @@ export default function OnboardingScreen() {
               autoCapitalize="words"
             />
 
-            <Text style={[s.label, { color: colors.mutedForeground }]}>Tus 3 topicos de interes</Text>
+            <Text style={[s.label, { color: colors.mutedForeground }]}>
+              Tus 3 topicos de interes
+            </Text>
             <Text style={[s.hint, { color: colors.mutedForeground }]}>
               Ej: tecnologia, economia, ciencia, cultura, deportes...
             </Text>
@@ -177,40 +170,9 @@ export default function OnboardingScreen() {
           </View>
 
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Tono de lectura</Text>
-            <View style={s.toneGrid}>
-              {TONES.map((t) => {
-                const selected = tone === t.value;
-                return (
-                  <TouchableOpacity
-                    key={t.value}
-                    style={[
-                      s.toneCard,
-                      {
-                        borderColor: selected ? colors.primary : colors.border,
-                        backgroundColor: selected ? `${colors.primary}15` : colors.card,
-                      },
-                    ]}
-                    onPress={() => setTone(t.value)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        s.toneLabel,
-                        { color: selected ? colors.primary : colors.foreground },
-                      ]}
-                    >
-                      {t.label}
-                    </Text>
-                    <Text style={[s.toneDesc, { color: colors.mutedForeground }]}>{t.desc}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Horario de entrega</Text>
+            <Text style={[s.sectionTitle, { color: colors.foreground }]}>
+              Horario de entrega
+            </Text>
 
             <TouchableOpacity
               activeOpacity={0.75}
@@ -228,7 +190,9 @@ export default function OnboardingScreen() {
                   <Feather name="clock" size={16} color={colors.mutedForeground} />
                 </View>
                 <View>
-                  <Text style={[s.timeRowTitle, { color: colors.foreground }]}>Hora de entrega</Text>
+                  <Text style={[s.timeRowTitle, { color: colors.foreground }]}>
+                    Hora de entrega
+                  </Text>
                   <Text style={[s.timeRowSubtitle, { color: colors.mutedForeground }]}>
                     Toca para cambiarla
                   </Text>
@@ -236,7 +200,9 @@ export default function OnboardingScreen() {
               </View>
 
               <View style={s.timeRowRight}>
-                <Text style={[s.timeRowValue, { color: colors.foreground }]}>{deliveryTime}</Text>
+                <Text style={[s.timeRowValue, { color: colors.foreground }]}>
+                  {deliveryTime}
+                </Text>
                 <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
               </View>
             </TouchableOpacity>
@@ -248,7 +214,11 @@ export default function OnboardingScreen() {
             disabled={loading}
             activeOpacity={0.8}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.submitText}>Comenzar</Text>}
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={s.submitText}>Comenzar</Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -310,23 +280,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 15,
       fontFamily: "Inter_400Regular",
       marginBottom: 10,
-    },
-    toneGrid: {
-      gap: 10,
-    },
-    toneCard: {
-      borderWidth: 1.5,
-      borderRadius: 12,
-      padding: 14,
-      gap: 2,
-    },
-    toneLabel: {
-      fontSize: 15,
-      fontFamily: "Inter_600SemiBold",
-    },
-    toneDesc: {
-      fontSize: 13,
-      fontFamily: "Inter_400Regular",
     },
     timeRowButton: {
       borderWidth: 1,

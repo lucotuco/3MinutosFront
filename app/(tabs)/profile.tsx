@@ -20,16 +20,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TimePickerField } from "@/components/TimePickerField";
 import { useColors } from "@/hooks/useColors";
 import { useUser } from "@/context/UserContext";
-import { api, UserPreferences } from "@/services/api";
+import { api } from "@/services/api";
 import { LoadingState } from "@/components/LoadingState";
 import { ErrorState } from "@/components/ErrorState";
-
-const TONES = [
-  { value: "neutro" as const, label: "Neutro" },
-  { value: "cercano" as const, label: "Cercano" },
-  { value: "especialista" as const, label: "Especialista" },
-  { value: "breve" as const, label: "Breve" },
-];
 
 function parseDeliveryTime(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
@@ -50,7 +43,6 @@ export default function ProfileScreen() {
 
   const [name, setName] = useState("");
   const [topics, setTopics] = useState<[string, string, string]>(["", "", ""]);
-  const [tone, setTone] = useState<UserPreferences["tone"]>("neutro");
   const [selectedHour, setSelectedHour] = useState("08");
   const [selectedMinute, setSelectedMinute] = useState("00");
   const [timeModalVisible, setTimeModalVisible] = useState(false);
@@ -74,7 +66,6 @@ export default function ProfileScreen() {
       setName(data.name ?? "");
       const t = data.topics ?? ["", "", ""];
       setTopics([t[0] ?? "", t[1] ?? "", t[2] ?? ""] as [string, string, string]);
-      setTone(data.tone ?? "neutro");
       const parsed = parseDeliveryTime(data.deliveryTime ?? "08:00");
       setSelectedHour(parsed.hour);
       setSelectedMinute(parsed.minute);
@@ -125,7 +116,6 @@ export default function ProfileScreen() {
       await api.updatePreferences(userId, {
         name: name.trim(),
         topics: [topics[0].trim(), topics[1].trim(), topics[2].trim()],
-        tone,
         deliveryTime,
         isActive,
       });
@@ -231,37 +221,9 @@ export default function ProfileScreen() {
             </View>
 
             <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Tono</Text>
-              <View style={s.chips}>
-                {TONES.map((t) => {
-                  const selected = tone === t.value;
-                  return (
-                    <TouchableOpacity
-                      key={t.value}
-                      style={[
-                        s.chip,
-                        {
-                          borderColor: selected ? colors.primary : colors.border,
-                          backgroundColor: selected ? colors.primary : colors.card,
-                        },
-                      ]}
-                      onPress={() => {
-                        setTone(t.value);
-                        markDirty();
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={[s.chipText, { color: selected ? "#fff" : colors.foreground }]}>
-                        {t.label}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Horario de entrega</Text>
+              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
+                Horario de entrega
+              </Text>
 
               <TouchableOpacity
                 activeOpacity={0.75}
@@ -279,7 +241,9 @@ export default function ProfileScreen() {
                     <Feather name="clock" size={16} color={colors.mutedForeground} />
                   </View>
                   <View>
-                    <Text style={[s.timeRowTitle, { color: colors.foreground }]}>Hora de entrega</Text>
+                    <Text style={[s.timeRowTitle, { color: colors.foreground }]}>
+                      Hora de entrega
+                    </Text>
                     <Text style={[s.timeRowSubtitle, { color: colors.mutedForeground }]}>
                       Toca para cambiarla
                     </Text>
@@ -287,45 +251,49 @@ export default function ProfileScreen() {
                 </View>
 
                 <View style={s.timeRowRight}>
-                  <Text style={[s.timeRowValue, { color: colors.foreground }]}>{deliveryTime}</Text>
+                  <Text style={[s.timeRowValue, { color: colors.foreground }]}>
+                    {deliveryTime}
+                  </Text>
                   <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
                 </View>
               </TouchableOpacity>
             </View>
 
-            <View style={[s.section, s.activeRow]}>
-              <View style={s.activeLeft}>
-                <Text style={[s.activeTitle, { color: colors.foreground }]}>Suscripcion activa</Text>
-                <Text style={[s.activeDesc, { color: colors.mutedForeground }]}>Recibir digest diario</Text>
-              </View>
-              <Switch
-                value={isActive}
-                onValueChange={(v) => {
-                  setIsActive(v);
-                  markDirty();
-                }}
-                trackColor={{ false: colors.muted, true: colors.primary }}
-                thumbColor="#fff"
-              />
-            </View>
+            <View style={s.section}>
+              <View
+                style={[
+                  s.switchRow,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[s.switchTitle, { color: colors.foreground }]}>
+                    Resumen activo
+                  </Text>
+                  <Text style={[s.switchSubtitle, { color: colors.mutedForeground }]}>
+                    Pausa o reactiva tus entregas diarias
+                  </Text>
+                </View>
 
-            <View
-              style={[
-                s.section,
-                s.userIdRow,
-                { backgroundColor: colors.card, borderColor: colors.border },
-              ]}
-            >
-              <Feather name="user" size={14} color={colors.mutedForeground} />
-              <Text style={[s.userIdText, { color: colors.mutedForeground }]} numberOfLines={1}>
-                ID: {userId}
-              </Text>
+                <Switch
+                  value={isActive}
+                  onValueChange={(value) => {
+                    setIsActive(value);
+                    markDirty();
+                  }}
+                  trackColor={{ false: colors.secondary, true: colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
             </View>
 
             <TouchableOpacity
-              style={[s.logoutBtn, { borderColor: colors.destructive }]}
+              style={[s.logoutBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
               onPress={confirmLogout}
-              activeOpacity={0.7}
+              activeOpacity={0.8}
             >
               <Feather name="log-out" size={16} color={colors.destructive} />
               <Text style={[s.logoutText, { color: colors.destructive }]}>Cerrar sesion</Text>
@@ -348,61 +316,48 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     root: { flex: 1 },
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
       paddingHorizontal: 20,
       paddingBottom: 16,
       borderBottomWidth: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
     title: {
-      fontSize: 26,
+      fontSize: 28,
       fontFamily: "Inter_700Bold",
     },
     saveBtn: {
-      paddingHorizontal: 18,
-      paddingVertical: 9,
-      borderRadius: 10,
-      minWidth: 80,
-      alignItems: "center",
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
     },
     saveTxt: {
       color: "#fff",
-      fontFamily: "Inter_600SemiBold",
-      fontSize: 14,
+      fontFamily: "Inter_700Bold",
+      fontSize: 13,
     },
-    scroll: { padding: 20, gap: 4 },
-    section: { marginBottom: 24 },
+    scroll: {
+      padding: 20,
+    },
+    section: {
+      marginBottom: 22,
+    },
     sectionLabel: {
       fontSize: 12,
-      fontFamily: "Inter_500Medium",
+      fontFamily: "Inter_600SemiBold",
+      marginBottom: 8,
       textTransform: "uppercase",
-      letterSpacing: 0.8,
-      marginBottom: 10,
+      letterSpacing: 0.4,
     },
     input: {
       borderWidth: 1,
-      borderRadius: 10,
+      borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 13,
       fontSize: 15,
-      fontFamily: "Inter_400Regular",
-      marginBottom: 10,
-    },
-    chips: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: 8,
-    },
-    chip: {
-      paddingHorizontal: 16,
-      paddingVertical: 9,
-      borderRadius: 20,
-      borderWidth: 1.5,
-    },
-    chipText: {
-      fontSize: 14,
       fontFamily: "Inter_500Medium",
+      marginBottom: 10,
     },
     timeRowButton: {
       borderWidth: 1,
@@ -446,47 +401,37 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontFamily: "Inter_700Bold",
       letterSpacing: 0.3,
     },
-    activeRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    activeLeft: { flex: 1, gap: 2 },
-    activeTitle: {
-      fontSize: 15,
-      fontFamily: "Inter_500Medium",
-    },
-    activeDesc: {
-      fontSize: 13,
-      fontFamily: "Inter_400Regular",
-    },
-    userIdRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 8,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderRadius: 10,
+    switchRow: {
       borderWidth: 1,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
     },
-    userIdText: {
+    switchTitle: {
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold",
+    },
+    switchSubtitle: {
       fontSize: 12,
       fontFamily: "Inter_400Regular",
-      flex: 1,
+      marginTop: 2,
     },
     logoutBtn: {
+      borderWidth: 1,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
-      borderWidth: 1,
-      borderRadius: 10,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
       justifyContent: "center",
-      marginTop: 8,
+      gap: 8,
+      marginTop: 10,
     },
     logoutText: {
-      fontSize: 15,
-      fontFamily: "Inter_500Medium",
+      fontSize: 14,
+      fontFamily: "Inter_600SemiBold",
     },
   });
