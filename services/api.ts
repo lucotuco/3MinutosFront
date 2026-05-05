@@ -1,3 +1,5 @@
+export type PoliticalBiasRisk = "low" | "medium" | "high" | "unknown";
+
 export type UserPreferences = {
   id?: string;
   name: string;
@@ -8,12 +10,33 @@ export type UserPreferences = {
 
 export type DigestItem = {
   articleId?: string | null;
+
   title: string | null;
+  neutralTitle?: string | null;
+
+  lead?: string | null;
+  neutralLead?: string | null;
+
   summary: string | null;
+  neutralSummary?: string | null;
+
+  originalTitle?: string | null;
+
   topic: string;
   region?: string | null;
   section?: string | null;
   url?: string | null;
+  tags?: string[];
+
+  cached?: boolean;
+  fallback?: boolean;
+  curationFallback?: boolean;
+
+  neutralityScore?: number | null;
+  politicalBiasRisk?: PoliticalBiasRisk;
+
+  score?: number | null;
+  finalScore?: number | null;
 };
 
 export type DigestResponse = {
@@ -25,7 +48,9 @@ export type DigestResponse = {
   };
   digest: {
     items: DigestItem[];
-    audioUrl?: string;
+    audioUrl?: string | null;
+    audioStorageKey?: string | null;
+    audioGeneratedAt?: string | null;
   };
 };
 
@@ -45,8 +70,18 @@ function normalizeTopics(value: unknown): [string, string, string] {
   const topics = Array.isArray(value)
     ? value.map((topic) => String(topic ?? "").trim()).slice(0, 3)
     : [];
+
   while (topics.length < 3) topics.push("");
+
   return [topics[0], topics[1], topics[2]];
+}
+
+function normalizePoliticalBiasRisk(value: unknown): PoliticalBiasRisk {
+  if (value === "low" || value === "medium" || value === "high") {
+    return value;
+  }
+
+  return "unknown";
 }
 
 const API_BASE_URL = (
@@ -118,15 +153,49 @@ type RawDigest = {
   digest?: {
     items?: Array<{
       articleId?: string | null;
+
       title?: string | null;
+      neutralTitle?: string | null;
+
+      lead?: string | null;
+      neutralLead?: string | null;
+
       summary?: string | null;
+      neutralSummary?: string | null;
+
+      originalTitle?: string | null;
+
       topic?: unknown;
       region?: string | null;
       section?: string | null;
       url?: string | null;
+      tags?: unknown;
+
+      cached?: unknown;
+      fallback?: unknown;
+      curationFallback?: unknown;
+
+      neutralityScore?: unknown;
+      politicalBiasRisk?: unknown;
+
+      score?: unknown;
+      finalScore?: unknown;
     }>;
+    audioUrl?: unknown;
+    audioStorageKey?: unknown;
+    audioGeneratedAt?: unknown;
   };
 };
+
+function toNullableNumber(value: unknown): number | null {
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+
+  return numeric;
+}
 
 function mapDigest(raw: RawDigest): DigestResponse {
   return {
@@ -142,15 +211,44 @@ function mapDigest(raw: RawDigest): DigestResponse {
       items: Array.isArray(raw.digest?.items)
         ? raw.digest.items.map((item) => ({
             articleId: item.articleId ?? undefined,
-            title: item.title ?? "",
-            summary: item.summary ?? "",
+
+            title: item.title ?? item.neutralTitle ?? "",
+            neutralTitle: item.neutralTitle ?? item.title ?? "",
+
+            lead: item.lead ?? item.neutralLead ?? "",
+            neutralLead: item.neutralLead ?? item.lead ?? "",
+
+            summary: item.summary ?? item.neutralSummary ?? "",
+            neutralSummary: item.neutralSummary ?? item.summary ?? "",
+
+            originalTitle: item.originalTitle ?? undefined,
+
             topic: String(item.topic ?? ""),
             region: item.region ?? undefined,
             section: item.section ?? undefined,
             url: item.url ?? undefined,
+            tags: Array.isArray(item.tags)
+              ? item.tags.map((tag) => String(tag ?? "")).filter(Boolean)
+              : [],
+
+            cached: Boolean(item.cached),
+            fallback: Boolean(item.fallback),
+            curationFallback: Boolean(item.curationFallback),
+
+            neutralityScore: toNullableNumber(item.neutralityScore),
+            politicalBiasRisk: normalizePoliticalBiasRisk(item.politicalBiasRisk),
+
+            score: toNullableNumber(item.score),
+            finalScore: toNullableNumber(item.finalScore),
           }))
         : [],
-      audioUrl: raw.digest?.audioUrl ? String(raw.digest.audioUrl) : undefined,
+      audioUrl: raw.digest?.audioUrl ? String(raw.digest.audioUrl) : null,
+      audioStorageKey: raw.digest?.audioStorageKey
+        ? String(raw.digest.audioStorageKey)
+        : null,
+      audioGeneratedAt: raw.digest?.audioGeneratedAt
+        ? String(raw.digest.audioGeneratedAt)
+        : null,
     },
   };
 }

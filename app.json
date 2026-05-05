@@ -15,11 +15,20 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.lucas.threeminutos"
+      "bundleIdentifier": "com.lucas.threeminutos",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Usamos tu ubicación para mostrar la temperatura actual de tu zona.",
+        "NSUserNotificationUsageDescription": "Usamos notificaciones para avisarte cuando tu resumen diario está listo."
+      }
     },
     "android": {
       "package": "com.lucas.threeminutos",
       "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "POST_NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
@@ -33,7 +42,8 @@
       "expo-font",
       "expo-web-browser",
       "@react-native-community/datetimepicker",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-location"
     ],
     "experiments": {
       "typedRoutes": true,

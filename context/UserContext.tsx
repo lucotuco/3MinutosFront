@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Notifications from "expo-notifications";
 import React, {
   createContext,
   useCallback,
@@ -7,8 +9,6 @@ import React, {
   useState,
   type ReactNode,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Notifications from "expo-notifications";
 
 import { api } from "@/services/api";
 import { registerForPushNotificationsAsync } from "@/services/notifications";
@@ -29,7 +29,9 @@ const UserContext = createContext<UserContextValue>({
   clearUserId: async () => {},
 });
 
-type Props = { children: ReactNode };
+type Props = {
+  children: ReactNode;
+};
 
 export function UserProvider({ children }: Props) {
   const [userId, setUserIdState] = useState<string | null>(null);
@@ -52,39 +54,41 @@ export function UserProvider({ children }: Props) {
         setIsLoading(false);
       }
     };
+
     load();
   }, []);
 
   useEffect(() => {
-  if (!userId) {
-    console.log("[Push] no hay userId, no registro token");
-    return;
-  }
+    if (!userId) return;
 
-  const registerPush = async () => {
-    try {
-      console.log("[Push] intentando registrar token para userId:", userId);
+    const registerPush = async () => {
+      try {
+        const expoPushToken = await registerForPushNotificationsAsync();
+        const maskedToken = `${expoPushToken.slice(0, 22)}...`;
 
-      const expoPushToken = await registerForPushNotificationsAsync();
-      console.log("[Push] token obtenido:", expoPushToken);
+        console.log("[Push] token obtenido:", maskedToken);
 
-      const response = await api.updatePushToken(userId, expoPushToken);
-      console.log("[Push] respuesta backend guardando token:", response);
-    } catch (err) {
-      console.warn("[Push] no se pudo registrar el token", err);
-    }
-  };
+        const response = await api.updatePushToken(userId, expoPushToken);
 
-  registerPush();
-}, [userId]);
+        console.log("[Push] token guardado en backend:", response?.ok === true);
+      } catch (err) {
+        console.warn("[Push] no se pudo registrar el token", err);
+      }
+    };
+
+    registerPush();
+  }, [userId]);
 
   useEffect(() => {
     const receivedSub = Notifications.addNotificationReceivedListener((notification) => {
-      console.log("[Push] recibida en foreground:", notification);
+      console.log("[Push] recibida en foreground:", notification.request.identifier);
     });
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log("[Push] usuario tocó la notificación:", response);
+      console.log(
+        "[Push] usuario tocó la notificación:",
+        response.notification.request.identifier
+      );
     });
 
     return () => {
@@ -95,6 +99,7 @@ export function UserProvider({ children }: Props) {
 
   const setUserId = useCallback(async (id: string) => {
     setUserIdState(id);
+
     try {
       await AsyncStorage.setItem(STORAGE_KEY, id);
     } catch (err) {
@@ -104,6 +109,7 @@ export function UserProvider({ children }: Props) {
 
   const clearUserId = useCallback(async () => {
     setUserIdState(null);
+
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
     } catch (err) {
@@ -112,7 +118,12 @@ export function UserProvider({ children }: Props) {
   }, []);
 
   const value = useMemo(
-    () => ({ userId, isLoading, setUserId, clearUserId }),
+    () => ({
+      userId,
+      isLoading,
+      setUserId,
+      clearUserId,
+    }),
     [userId, isLoading, setUserId, clearUserId]
   );
 

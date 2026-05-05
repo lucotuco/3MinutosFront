@@ -1,6 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
+import * as Location from "expo-location";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -21,17 +23,105 @@ import { LoadingState } from "@/components/LoadingState";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
-import { Audio } from "expo-av";
+
+type WeatherState = {
+  label: string;
+  loading: boolean;
+};
+
+function formatTodayLabel() {
+  const today = new Date();
+
+  const formatted = today.toLocaleDateString("es-AR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function getCityFromAddress(address: Location.LocationGeocodedAddress) {
+  return (
+    address.city ||
+    address.subregion ||
+    address.region ||
+    address.district ||
+    "tu zona"
+  );
+}
+
+async function fetchCurrentWeatherLabel(): Promise<string> {
+  const permission = await Location.requestForegroundPermissionsAsync();
+
+  if (permission.status !== "granted") {
+    return "";
+  }
+
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  const { latitude, longitude } = position.coords;
+
+  const weatherUrl =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${latitude}` +
+    `&longitude=${longitude}` +
+    `&current=temperature_2m` +
+    `&timezone=auto`;
+
+  const response = await fetch(weatherUrl);
+
+  if (!response.ok) {
+    throw new Error(`Weather HTTP ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    current?: {
+      temperature_2m?: number;
+    };
+  };
+
+  const temperature = data.current?.temperature_2m;
+
+  if (typeof temperature !== "number") {
+    return "";
+  }
+
+  let city = "tu zona";
+
+  try {
+    const addresses = await Location.reverseGeocodeAsync({
+      latitude,
+      longitude,
+    });
+
+    if (addresses[0]) {
+      city = getCityFromAddress(addresses[0]);
+    }
+  } catch {
+    city = "tu zona";
+  }
+
+  return `${Math.round(temperature)}° en ${city}`;
+}
 
 export default function DigestScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId } = useUser();
   const queryClient = useQueryClient();
+
   const [refreshing, setRefreshing] = useState(false);
-  const lastMarkedKeyRef = useRef<string | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
-const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [weather, setWeather] = useState<WeatherState>({
+    label: "",
+    loading: true,
+  });
+
+  const lastMarkedKeyRef = useRef<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["digest", userId],
@@ -41,60 +131,104 @@ const [playing, setPlaying] = useState(false);
   });
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadWeather = async () => {
+      try {
+        const label = await fetchCurrentWeatherLabel();
+
+        if (!cancelled) {
+          setWeather({
+            label,
+            loading: false,
+          });
+        }
+      } catch {
+        if (!cancelled) {
+          setWeather({
+            label: "",
+            loading: false,
+          });
+        }
+      }
+    };
+
+    loadWeather();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!userId || !data?.digest?.items?.length) return;
 
     const markKey = JSON.stringify({
-  items: data.digest.items.map((item) => ({
-    articleId: item.articleId ?? "",
-    url: item.url ?? "",
-    topic: item.topic ?? "",
-  })),
-});
+      items: data.digest.items.map((item) => ({
+        articleId: item.articleId ?? "",
+        url: item.url ?? "",
+        topic: item.topic ?? "",
+      })),
+    });
+
     if (lastMarkedKeyRef.current === markKey) return;
+
     lastMarkedKeyRef.current = markKey;
 
-    api.markDigestShown(userId, {
-  items: data.digest.items,
-}).catch(() => {});
+    api
+      .markDigestShown(userId, {
+        items: data.digest.items,
+      })
+      .catch(() => {});
   }, [userId, data]);
 
+  useEffect(() => {
+    return () => {
+      if (sound) {
+        sound.unloadAsync().catch(() => {});
+      }
+    };
+  }, [sound]);
+
   const handlePlayDigest = async () => {
-  try {
-    if (!data?.digest?.audioUrl) return;
+    try {
+      if (!data?.digest?.audioUrl) return;
 
-    if (sound) {
-      await sound.unloadAsync();
-      setSound(null);
-      setPlaying(false);
-    }
-
-    const { sound: newSound } = await Audio.Sound.createAsync(
-      { uri: data.digest.audioUrl },
-      { shouldPlay: true }
-    );
-
-    setSound(newSound);
-    setPlaying(true);
-
-    newSound.setOnPlaybackStatusUpdate((status) => {
-      if (!status.isLoaded) return;
-      if (status.didJustFinish) {
+      if (sound) {
+        await sound.unloadAsync();
+        setSound(null);
         setPlaying(false);
       }
-    });
-  } catch (error) {
-    console.log("Error reproduciendo digest:", error);
-  }
-};
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: data.digest.audioUrl },
+        { shouldPlay: true }
+      );
+
+      setSound(newSound);
+      setPlaying(true);
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+
+        if (status.didJustFinish) {
+          setPlaying(false);
+        }
+      });
+    } catch (error) {
+      console.log("Error reproduciendo digest:", error);
+    }
+  };
 
   const handleRefresh = useCallback(async () => {
     if (!userId) return;
+
     setRefreshing(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
       const result = await api.refreshDigest(userId);
-      await queryClient.setQueryData(["digest", userId], result);
+      queryClient.setQueryData(["digest", userId], result);
     } catch {
     } finally {
       setRefreshing(false);
@@ -102,15 +236,17 @@ const [playing, setPlaying] = useState(false);
   }, [userId, queryClient]);
 
   const s = makeStyles(colors);
+
   const topPad = Platform.OS === "web" ? 56 : insets.top;
   const botPad =
     Platform.OS === "web"
       ? 110
       : Platform.OS === "android"
-      ? insets.bottom + 130
-      : insets.bottom + 110;
+        ? insets.bottom + 130
+        : insets.bottom + 110;
 
   const displayName = data?.user?.name ? `, ${data.user.name}` : "";
+  const todayLabel = formatTodayLabel();
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
@@ -174,13 +310,23 @@ const [playing, setPlaying] = useState(false);
         >
           <Feather name="calendar" size={13} color={colors.primary} />
           <Text style={[s.infoText, { color: colors.accentForeground }]}>
-            Viernes 18 de abril
+            {todayLabel}
           </Text>
-          <Text style={[s.infoDot, { color: colors.mutedForeground }]}>•</Text>
-          <Feather name="sun" size={13} color={colors.primary} />
-          <Text style={[s.infoText, { color: colors.accentForeground }]}>
-            23° en Buenos Aires
-          </Text>
+
+          {weather.loading ? (
+            <>
+              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>•</Text>
+              <ActivityIndicator size="small" color={colors.primary} />
+            </>
+          ) : weather.label ? (
+            <>
+              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>•</Text>
+              <Feather name="sun" size={13} color={colors.primary} />
+              <Text style={[s.infoText, { color: colors.accentForeground }]}>
+                {weather.label}
+              </Text>
+            </>
+          ) : null}
         </View>
 
         {isLoading && <LoadingState />}
@@ -192,15 +338,17 @@ const [playing, setPlaying] = useState(false);
           />
         )}
 
-        {!isLoading && !isError && (!data?.digest?.items || data.digest.items.length === 0) && (
-          <EmptyState
-            icon="book-open"
-            title="No hay noticias aún"
-            description="Tu digest se está preparando. Vuelve más tarde o actualiza manualmente."
-            actionLabel="Actualizar"
-            onAction={handleRefresh}
-          />
-        )}
+        {!isLoading &&
+          !isError &&
+          (!data?.digest?.items || data.digest.items.length === 0) && (
+            <EmptyState
+              icon="book-open"
+              title="No hay noticias aún"
+              description="Tu digest se está preparando. Vuelve más tarde o actualiza manualmente."
+              actionLabel="Actualizar"
+              onAction={handleRefresh}
+            />
+          )}
 
         {!isLoading && !isError && data?.digest?.items && data.digest.items.length > 0 && (
           <>
@@ -213,37 +361,37 @@ const [playing, setPlaying] = useState(false);
             ))}
 
             <TouchableOpacity
-  activeOpacity={0.85}
-  style={[
-    s.listenButton,
-    {
-      backgroundColor: colors.secondary,
-      borderColor: colors.border,
-      opacity: data?.digest?.audioUrl ? 1 : 0.5,
-    },
-  ]}
-  onPress={handlePlayDigest}
-  disabled={!data?.digest?.audioUrl}
->
-  <View style={[s.playCircle, { backgroundColor: colors.primary }]}>
-    <Feather
-      name={playing ? "pause" : "play"}
-      size={16}
-      color="#FFFFFF"
-    />
-  </View>
+              activeOpacity={0.85}
+              style={[
+                s.listenButton,
+                {
+                  backgroundColor: colors.secondary,
+                  borderColor: colors.border,
+                  opacity: data.digest.audioUrl ? 1 : 0.5,
+                },
+              ]}
+              onPress={handlePlayDigest}
+              disabled={!data.digest.audioUrl}
+            >
+              <View style={[s.playCircle, { backgroundColor: colors.primary }]}>
+                <Feather
+                  name={playing ? "pause" : "play"}
+                  size={16}
+                  color="#FFFFFF"
+                />
+              </View>
 
-  <View style={s.listenTextWrap}>
-    <Text style={[s.listenTitle, { color: colors.foreground }]}>
-      Escuchar resumen
-    </Text>
-    <Text style={[s.listenSub, { color: colors.mutedForeground }]}>
-      {data?.digest?.audioUrl ? "Disponible" : "Generando audio"}
-    </Text>
-  </View>
+              <View style={s.listenTextWrap}>
+                <Text style={[s.listenTitle, { color: colors.foreground }]}>
+                  Escuchar resumen
+                </Text>
+                <Text style={[s.listenSub, { color: colors.mutedForeground }]}>
+                  {data.digest.audioUrl ? "Disponible" : "Generando audio"}
+                </Text>
+              </View>
 
-  <Feather name="volume-2" size={18} color={colors.primary} />
-</TouchableOpacity>
+              <Feather name="volume-2" size={18} color={colors.primary} />
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -253,7 +401,9 @@ const [playing, setPlaying] = useState(false);
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
-    root: { flex: 1 },
+    root: {
+      flex: 1,
+    },
     header: {
       flexDirection: "row",
       alignItems: "center",
@@ -286,14 +436,11 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       paddingTop: 4,
     },
     heroText: {
-  fontSize: 24,
-  lineHeight: 24,
-  fontFamily: "Inter_700Bold",
-  marginBottom: 8,
-},
-heroSub: {
-  fontFamily: "Inter_400Regular",
-},
+      fontSize: 24,
+      lineHeight: 24,
+      fontFamily: "Inter_700Bold",
+      marginBottom: 8,
+    },
     infoPill: {
       flexDirection: "row",
       alignItems: "center",
