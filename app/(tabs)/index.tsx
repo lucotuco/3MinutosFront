@@ -26,10 +26,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import sponsorLogo from "../../assets/images/banco-comercio.png";
 
+import { DailyAgendaStrip } from "@/components/DailyAgendaStrip";
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
-import { NewsAgentButton } from "@/components/NewsAgentButton";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
@@ -421,16 +421,7 @@ export default function DigestScreen() {
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      /*
-       * Pull-to-refresh ahora significa:
-       * generar un nuevo digest en backend.
-       */
       await api.refreshDigest(userId);
-
-      /*
-       * Luego pedimos el digest actualizado para refrescar la UI.
-       */
       await refetch();
     } catch (error) {
       const message =
@@ -446,21 +437,20 @@ export default function DigestScreen() {
 
   const s = makeStyles(colors);
 
-  const topPad = Platform.OS === "web" ? 56 : insets.top;
+  const topPad = Platform.OS === "web" ? 42 : Math.max(insets.top - 4, 0);
 
   const botPad =
     Platform.OS === "web"
-      ? 110
+      ? 96
       : Platform.OS === "android"
-        ? insets.bottom + 130
-        : insets.bottom + 110;
+        ? insets.bottom + 104
+        : insets.bottom + 92;
 
-  const displayName = data?.user?.name ? `, ${data.user.name}` : "";
   const todayLabel = formatTodayLabel();
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
-      <View style={[s.header, { paddingTop: topPad + 10 }]}>
+      <View style={[s.header, { paddingTop: topPad }]}>
         <View style={s.brandSponsorRow}>
           <View style={s.brandRow}>
             <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
@@ -500,40 +490,11 @@ export default function DigestScreen() {
           />
         }
       >
-        <Text style={[s.heroText, { color: colors.text }]}>
-          Buen día{displayName}.
-        </Text>
-
-        <View
-          style={[
-            s.infoPill,
-            {
-              borderColor: "rgba(255,255,255,0.22)",
-              backgroundColor: "rgba(255,255,255,0.10)",
-            },
-          ]}
-        >
-          <Feather name="calendar" size={13} color="#fff" />
-
-          <Text style={[s.infoText, { color: "#fff" }]}>{todayLabel}</Text>
-
-          {weather.loading ? (
-            <>
-              <Text style={[s.infoDot, { color: "#fff" }]}>•</Text>
-              <ActivityIndicator size="small" color="#fff" />
-            </>
-          ) : weather.label ? (
-            <>
-              <Text style={[s.infoDot, { color: "#fff" }]}>•</Text>
-              <Feather name="cloud" size={13} color="#fff" />
-              <Text style={[s.infoText, { color: "#fff" }]}>
-                {weather.label}
-              </Text>
-            </>
-          ) : null}
-        </View>
-
-        <NewsAgentButton />
+        <DailyAgendaStrip
+          todayLabel={todayLabel}
+          weatherLabel={weather.label}
+          weatherLoading={weather.loading}
+        />
 
         {isLoading && <DigestLoadingState />}
 
@@ -624,7 +585,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
 
     header: {
       paddingHorizontal: 18,
-      paddingBottom: 8,
+      paddingBottom: 2,
     },
 
     brandSponsorRow: {
@@ -642,98 +603,66 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     logoBlue: {
-      fontSize: 31,
+      fontSize: 30,
       fontFamily: "Inter_700Bold",
     },
 
     logoText: {
-      fontSize: 31,
+      fontSize: 30,
       fontFamily: "Inter_700Bold",
     },
 
     sponsorWrapInline: {
       flexShrink: 1,
       borderWidth: 1,
-      borderRadius: 12,
+      borderRadius: 11,
       paddingHorizontal: 8,
-      paddingVertical: 6,
+      paddingVertical: 5,
     },
 
     sponsorLogoInline: {
-      width: 132,
-      height: 38,
+      width: 126,
+      height: 34,
     },
 
     scroll: {
       paddingHorizontal: 18,
-      paddingTop: 4,
-    },
-
-    heroText: {
-      fontSize: 24,
-      lineHeight: 26,
-      fontFamily: "Inter_700Bold",
-      marginBottom: 8,
-    },
-
-    infoPill: {
-      flexDirection: "row",
-      alignItems: "center",
-      flexWrap: "wrap",
-      gap: 6,
-      alignSelf: "flex-start",
-      borderWidth: 1,
-      borderRadius: 999,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      marginBottom: 8,
-    },
-
-    infoText: {
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      letterSpacing: 0.2,
-    },
-
-    infoDot: {
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      marginHorizontal: 2,
+      paddingTop: 0,
     },
 
     loadingCard: {
-      marginTop: 8,
-      marginBottom: 16,
+      marginTop: 6,
+      marginBottom: 12,
       borderWidth: 1,
-      borderRadius: 24,
-      paddingHorizontal: 22,
-      paddingVertical: 26,
+      borderRadius: 22,
+      paddingHorizontal: 20,
+      paddingVertical: 22,
       alignItems: "center",
     },
 
     loadingIconCircle: {
-      width: 66,
-      height: 66,
-      borderRadius: 33,
+      width: 62,
+      height: 62,
+      borderRadius: 31,
       alignItems: "center",
       justifyContent: "center",
-      marginBottom: 18,
+      marginBottom: 14,
     },
 
     loadingTitle: {
-      fontSize: 20,
-      lineHeight: 25,
+      fontSize: 18,
+      lineHeight: 23,
       fontFamily: "Inter_700Bold",
       textAlign: "center",
-      marginBottom: 8,
+      marginBottom: 7,
     },
 
     loadingSubtitle: {
-      fontSize: 14,
-      lineHeight: 20,
+      fontSize: 13,
+      lineHeight: 19,
       fontFamily: "Inter_400Regular",
       textAlign: "center",
-      marginBottom: 18,
+      marginBottom: 15,
     },
 
     dotsRow: {
@@ -750,12 +679,12 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     listenButton: {
-      marginTop: 2,
-      marginBottom: 6,
+      marginTop: 0,
+      marginBottom: 4,
       borderRadius: 18,
       borderWidth: 1,
       paddingHorizontal: 14,
-      paddingVertical: 11,
+      paddingVertical: 10,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
@@ -774,7 +703,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     listenTitle: {
-      fontSize: 16,
+      fontSize: 15,
       fontFamily: "Inter_700Bold",
     },
 

@@ -22,7 +22,7 @@ function isValidDate(value: unknown) {
 
 export async function getUpcomingCalendarEvents(
   daysAhead = 7,
-  maxEvents = 4
+  maxEvents = 3
 ): Promise<UpcomingCalendarEvent[] | null> {
   try {
     const permission = await Calendar.requestCalendarPermissionsAsync();
@@ -35,11 +35,7 @@ export async function getUpcomingCalendarEvents(
       Calendar.EntityTypes.EVENT
     );
 
-    const readableCalendars = calendars.filter((calendar) => {
-      return calendar.allowsModifications !== false || calendar.source;
-    });
-
-    const calendarIds = readableCalendars
+    const calendarIds = calendars
       .map((calendar) => calendar.id)
       .filter(Boolean);
 
@@ -59,7 +55,9 @@ export async function getUpcomingCalendarEvents(
     return events
       .filter((event) => event.title)
       .filter((event) => isValidDate(event.startDate))
-      .filter((event) => new Date(String(event.startDate)).getTime() >= now.getTime())
+      .filter(
+        (event) => new Date(String(event.startDate)).getTime() >= now.getTime()
+      )
       .sort((a, b) => {
         return (
           new Date(String(a.startDate)).getTime() -
