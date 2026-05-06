@@ -28,12 +28,20 @@ type Status = "idle" | "connecting" | "connected" | "error";
 function getEventText(event: any) {
   if (!event || typeof event !== "object") return "";
 
-  if (event.type === "response.output_text.delta") return event.delta || "";
+  if (event.type === "response.output_text.delta") {
+    return event.delta || "";
+  }
+
   if (event.type === "response.output_audio_transcript.delta") {
     return event.delta || "";
   }
+
   if (event.type === "conversation.item.input_audio_transcription.completed") {
-    return event.transcript ? `\nVos: ${event.transcript}\n` : "";
+    return event.transcript ? `\n\nVos: ${event.transcript}\n` : "";
+  }
+
+  if (event.type === "response.done") {
+    return "\n";
   }
 
   return "";
@@ -47,6 +55,8 @@ export default function NewsAgentScreen() {
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const dcRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const remoteStreamRef = useRef<MediaStream | null>(null);
+  const startingRef = useRef(false);
 
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
@@ -54,7 +64,23 @@ export default function NewsAgentScreen() {
 
   const cleanup = useCallback(async () => {
     try {
+      if (dcRef.current?.readyState === "open") {
+        dcRef.current.send(
+          JSON.stringify({
+            type: "response.cancel",
+          })
+        );
+      }
+    } catch {}
+
+    try {
       dcRef.current?.close?.();
+    } catch {}
+
+    try {
+      pcRef.current?.getSenders?.().forEach((sender: any) => {
+        sender.track?.stop?.();
+      });
     } catch {}
 
     try {
@@ -67,24 +93,38 @@ export default function NewsAgentScreen() {
       });
     } catch {}
 
+    try {
+      remoteStreamRef.current?.getTracks?.().forEach((track) => {
+        track.stop();
+      });
+    } catch {}
+
     dcRef.current = null;
     pcRef.current = null;
     localStreamRef.current = null;
+    remoteStreamRef.current = null;
+    startingRef.current = false;
 
     setStatus("idle");
   }, []);
 
   const startSession = useCallback(async () => {
+    if (startingRef.current || pcRef.current) {
+      return;
+    }
+
     if (!userId) {
       Alert.alert("Sin usuario", "No encontramos tu sesión.");
       return;
     }
 
+    startingRef.current = true;
     setStatus("connecting");
     setTranscript("");
 
     try {
       const secretResponse = await api.getNewsAgentClientSecret(userId);
+
       setDigestDate(secretResponse.digestDate);
 
       const stream = await mediaDevices.getUserMedia({
@@ -104,11 +144,26 @@ export default function NewsAgentScreen() {
         pc.addTrack(track, stream);
       });
 
+      pc.addEventListener("track", (event: any) => {
+        const [remoteStream] = event.streams || [];
+
+        if (remoteStream) {
+          remoteStreamRef.current = remoteStream;
+        }
+      });
+
       pc.addEventListener("connectionstatechange", () => {
         const state = pc.connectionState;
 
-        if (state === "connected") setStatus("connected");
-        if (state === "failed" || state === "closed" || state === "disconnected") {
+        if (state === "connected") {
+          setStatus("connected");
+        }
+
+        if (
+          state === "failed" ||
+          state === "closed" ||
+          state === "disconnected"
+        ) {
           setStatus("idle");
         }
       });
@@ -118,16 +173,6 @@ export default function NewsAgentScreen() {
 
       dc.onopen = () => {
         setStatus("connected");
-
-        dc.send(
-          JSON.stringify({
-            type: "response.create",
-            response: {
-              instructions:
-                "Arrancá saludando breve y preguntá qué noticia quiere discutir.",
-            },
-          })
-        );
       };
 
       dc.onmessage = (message: any) => {
@@ -182,6 +227,8 @@ export default function NewsAgentScreen() {
       );
 
       await cleanup();
+    } finally {
+      startingRef.current = false;
     }
   }, [cleanup, userId]);
 
@@ -218,6 +265,7 @@ export default function NewsAgentScreen() {
           <Text style={[s.title, { color: colors.text }]}>
             Agente de noticias
           </Text>
+
           <Text style={[s.subtitle, { color: colors.mutedText }]}>
             {digestDate
               ? `Contexto del digest: ${digestDate}`
@@ -242,7 +290,11 @@ export default function NewsAgentScreen() {
           {isConnecting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Feather name={isConnected ? "square" : "mic"} size={38} color="#fff" />
+            <Feather
+              name={isConnected ? "square" : "mic"}
+              size={38}
+              color="#fff"
+            />
           )}
         </TouchableOpacity>
 
