@@ -23,7 +23,10 @@ export function DigestCard({ item, index }: DigestCardProps) {
   const title = item.neutralTitle || item.title || "Sin título";
   const lead = item.neutralLead || item.lead || "";
   const summary =
-    item.neutralSummary || item.summary || "Sin resumen disponible.";
+    item.neutralSummary ||
+    item.summary ||
+    lead ||
+    "No hay más información disponible para esta noticia.";
 
   const openUrl = async () => {
     if (!item.url) return;
@@ -39,7 +42,7 @@ export function DigestCard({ item, index }: DigestCardProps) {
 
   return (
     <TouchableOpacity
-      activeOpacity={0.86}
+      activeOpacity={0.88}
       onPress={toggleExpanded}
       style={[
         styles.card,
@@ -78,73 +81,45 @@ export function DigestCard({ item, index }: DigestCardProps) {
 
       <Text
         style={[styles.title, { color: colors.foreground }]}
-        numberOfLines={2}
+        numberOfLines={expanded ? undefined : 2}
       >
         {title}
       </Text>
 
       {lead ? (
         <Text
-          style={[styles.lead, { color: colors.mutedForeground }]}
-          numberOfLines={expanded ? 3 : 1}
+          style={[styles.lead, { color: colors.accentForeground }]}
+          numberOfLines={expanded ? undefined : 2}
         >
           {lead}
         </Text>
       ) : null}
 
       {expanded ? (
-        <>
+        <View style={styles.expandedBlock}>
           <Text style={[styles.summary, { color: colors.mutedForeground }]}>
             {summary}
           </Text>
 
-          <View style={styles.footerRow}>
-            {typeof item.neutralityScore === "number" ? (
-              <View
-                style={[
-                  styles.neutralBadge,
-                  { backgroundColor: colors.secondary },
-                ]}
-              >
-                <Feather
-                  name="shield"
-                  size={12}
-                  color={colors.mutedForeground}
-                />
-                <Text
-                  style={[
-                    styles.neutralText,
-                    { color: colors.mutedForeground },
-                  ]}
-                  numberOfLines={1}
-                >
-                  Neutralidad {Math.round(item.neutralityScore)}%
-                </Text>
-              </View>
-            ) : (
-              <View />
-            )}
-
-            {item.url ? (
-              <TouchableOpacity
-                style={[
-                  styles.linkButton,
-                  {
-                    backgroundColor: colors.accent,
-                    borderColor: colors.border,
-                  },
-                ]}
-                onPress={openUrl}
-                activeOpacity={0.8}
-              >
-                <Feather name="external-link" size={14} color={colors.primary} />
-                <Text style={[styles.linkText, { color: colors.primary }]}>
-                  Abrir fuente
-                </Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </>
+          {item.url ? (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[
+                styles.linkButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondary,
+                },
+              ]}
+              onPress={openUrl}
+            >
+              <Feather name="external-link" size={13} color={colors.primary} />
+              <Text style={[styles.linkText, { color: colors.primary }]}>
+                Leer fuente
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
       ) : null}
     </TouchableOpacity>
   );
@@ -154,13 +129,17 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     borderWidth: 1,
-    padding: 11,
+    paddingHorizontal: 11,
+    paddingVertical: 10,
     marginBottom: 8,
     gap: 5,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 7,
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
     elevation: 2,
   },
   topRow: {
@@ -186,56 +165,40 @@ const styles = StyleSheet.create({
   topic: {
     fontSize: 10,
     fontFamily: "Inter_700Bold",
-    letterSpacing: 0.3,
+    letterSpacing: 0.35,
   },
   metaSmall: {
-    fontSize: 9,
+    fontSize: 10,
     fontFamily: "Inter_400Regular",
     marginTop: 1,
   },
   title: {
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 16,
+    lineHeight: 19,
     fontFamily: "Inter_700Bold",
   },
   lead: {
-    fontSize: 12,
-    lineHeight: 15,
-    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    lineHeight: 16,
+    fontFamily: "Inter_500Medium",
+  },
+  expandedBlock: {
+    marginTop: 2,
+    gap: 7,
   },
   summary: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: "Inter_400Regular",
-    marginTop: 2,
-  },
-  footerRow: {
-    marginTop: 6,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  neutralBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    flexShrink: 1,
-  },
-  neutralText: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
   },
   linkButton: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
     gap: 5,
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 10,
+    paddingHorizontal: 9,
     paddingVertical: 6,
   },
   linkText: {

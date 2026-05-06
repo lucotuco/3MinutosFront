@@ -1,5 +1,5 @@
 import { Feather } from "@expo/vector-icons";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
@@ -111,7 +111,6 @@ export default function DigestScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId } = useUser();
-  const queryClient = useQueryClient();
 
   const [refreshing, setRefreshing] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -129,6 +128,24 @@ export default function DigestScreen() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
   });
+
+  useEffect(() => {
+    const configureAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
+        });
+      } catch (error) {
+        console.log("Error configurando audio:", error);
+      }
+    };
+
+    configureAudio();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -191,53 +208,71 @@ export default function DigestScreen() {
   }, [sound]);
 
   const handlePlayDigest = async () => {
-    try {
-      if (!data?.digest?.audioUrl) return;
+  try {
+    if (!data?.digest?.audioUrl) return;
 
-      if (sound) {
-        await sound.unloadAsync();
-        setSound(null);
-        setPlaying(false);
-      }
-
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: data.digest.audioUrl },
-        { shouldPlay: true }
-      );
-
-      setSound(newSound);
-      setPlaying(true);
-
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-
-        if (status.didJustFinish) {
-          setPlaying(false);
-        }
-      });
-    } catch (error) {
-      console.log("Error reproduciendo digest:", error);
+    if (sound && playing) {
+      await sound.pauseAsync();
+      setPlaying(false);
+      return;
     }
-  };
 
+    if (sound && !playing) {
+      await sound.playAsync();
+      setPlaying(true);
+      return;
+    }
+
+    await Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+      playThroughEarpieceAndroid: false,
+    });
+
+    const { sound: newSound } = await Audio.Sound.createAsync(
+      { uri: data.digest.audioUrl },
+      {
+        shouldPlay: true,
+        volume: 1,
+        isMuted: false,
+      }
+    );
+
+    setSound(newSound);
+    setPlaying(true);
+
+    newSound.setOnPlaybackStatusUpdate((status) => {
+      if (!status.isLoaded) return;
+
+      if (status.didJustFinish) {
+        setPlaying(false);
+        newSound.setPositionAsync(0).catch(() => {});
+      }
+    });
+  } catch (error) {
+    console.log("Error reproduciendo digest:", error);
+  }
+};
   const handleRefresh = useCallback(async () => {
     if (!userId) return;
 
     setRefreshing(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      const result = await api.refreshDigest(userId);
-      queryClient.setQueryData(["digest", userId], result);
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await refetch();
     } catch {
     } finally {
       setRefreshing(false);
     }
-  }, [userId, queryClient]);
+  }, [userId, refetch]);
 
   const s = makeStyles(colors);
 
   const topPad = Platform.OS === "web" ? 56 : insets.top;
+
   const botPad =
     Platform.OS === "web"
       ? 110
@@ -261,7 +296,9 @@ export default function DigestScreen() {
       >
         <View style={s.brandRow}>
           <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
-          <Text style={[s.logoText, { color: colors.foreground }]}>Minutos</Text>
+          <Text style={[s.logoText, { color: colors.foreground }]}>
+            Minutos
+          </Text>
         </View>
 
         <TouchableOpacity
@@ -309,18 +346,23 @@ export default function DigestScreen() {
           ]}
         >
           <Feather name="calendar" size={13} color={colors.primary} />
+
           <Text style={[s.infoText, { color: colors.accentForeground }]}>
             {todayLabel}
           </Text>
 
           {weather.loading ? (
             <>
-              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>•</Text>
+              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>
+                •
+              </Text>
               <ActivityIndicator size="small" color={colors.primary} />
             </>
           ) : weather.label ? (
             <>
-              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>•</Text>
+              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>
+                •
+              </Text>
               <Feather name="sun" size={13} color={colors.primary} />
               <Text style={[s.infoText, { color: colors.accentForeground }]}>
                 {weather.label}
@@ -350,50 +392,53 @@ export default function DigestScreen() {
             />
           )}
 
-        {!isLoading && !isError && data?.digest?.items && data.digest.items.length > 0 && (
-          <>
-            {data.digest.items.slice(0, 3).map((item, i) => (
-              <DigestCard
-                key={item.articleId ?? `${item.url ?? ""}-${i}`}
-                item={item}
-                index={i}
-              />
-            ))}
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={[
-                s.listenButton,
-                {
-                  backgroundColor: colors.secondary,
-                  borderColor: colors.border,
-                  opacity: data.digest.audioUrl ? 1 : 0.5,
-                },
-              ]}
-              onPress={handlePlayDigest}
-              disabled={!data.digest.audioUrl}
-            >
-              <View style={[s.playCircle, { backgroundColor: colors.primary }]}>
-                <Feather
-                  name={playing ? "pause" : "play"}
-                  size={16}
-                  color="#FFFFFF"
+        {!isLoading &&
+          !isError &&
+          data?.digest?.items &&
+          data.digest.items.length > 0 && (
+            <>
+              {data.digest.items.slice(0, 3).map((item, i) => (
+                <DigestCard
+                  key={item.articleId ?? `${item.url ?? ""}-${i}`}
+                  item={item}
+                  index={i}
                 />
-              </View>
+              ))}
 
-              <View style={s.listenTextWrap}>
-                <Text style={[s.listenTitle, { color: colors.foreground }]}>
-                  Escuchar resumen
-                </Text>
-                <Text style={[s.listenSub, { color: colors.mutedForeground }]}>
-                  {data.digest.audioUrl ? "Disponible" : "Generando audio"}
-                </Text>
-              </View>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={[
+                  s.listenButton,
+                  {
+                    backgroundColor: colors.secondary,
+                    borderColor: colors.border,
+                    opacity: data.digest.audioUrl ? 1 : 0.5,
+                  },
+                ]}
+                onPress={handlePlayDigest}
+                disabled={!data.digest.audioUrl}
+              >
+                <View style={[s.playCircle, { backgroundColor: colors.primary }]}>
+                  <Feather
+                    name={playing ? "pause" : "play"}
+                    size={16}
+                    color="#FFFFFF"
+                  />
+                </View>
 
-              <Feather name="volume-2" size={18} color={colors.primary} />
-            </TouchableOpacity>
-          </>
-        )}
+                <View style={s.listenTextWrap}>
+                  <Text style={[s.listenTitle, { color: colors.foreground }]}>
+                    Escuchar resumen
+                  </Text>
+                  <Text style={[s.listenSub, { color: colors.mutedForeground }]}>
+                    {data.digest.audioUrl ? "Disponible" : "Generando audio"}
+                  </Text>
+                </View>
+
+                <Feather name="volume-2" size={18} color={colors.primary} />
+              </TouchableOpacity>
+            </>
+          )}
       </ScrollView>
     </View>
   );
@@ -437,7 +482,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
     heroText: {
       fontSize: 24,
-      lineHeight: 24,
+      lineHeight: 26,
       fontFamily: "Inter_700Bold",
       marginBottom: 8,
     },
@@ -451,7 +496,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      marginBottom: 14,
+      marginBottom: 12,
     },
     infoText: {
       fontSize: 11,
@@ -469,7 +514,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderRadius: 18,
       borderWidth: 1,
       paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingVertical: 11,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
