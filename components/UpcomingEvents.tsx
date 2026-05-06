@@ -1,9 +1,12 @@
 import { Feather } from "@expo/vector-icons";
+import * as Calendar from "expo-calendar";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from "react-native";
 
@@ -13,7 +16,7 @@ import {
   type UpcomingCalendarEvent,
 } from "@/services/calendar";
 
-function formatEventDate(event: UpcomingCalendarEvent) {
+function formatEventDay(event: UpcomingCalendarEvent) {
   const start = new Date(event.startDate);
   const now = new Date();
 
@@ -24,28 +27,54 @@ function formatEventDate(event: UpcomingCalendarEvent) {
 
   const isTomorrow = start.toDateString() === tomorrow.toDateString();
 
-  const time = event.allDay
-    ? "Todo el día"
-    : start.toLocaleTimeString("es-AR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+  if (isToday) return "Hoy";
+  if (isTomorrow) return "Mañana";
 
-  if (isToday) {
-    return `Hoy · ${time}`;
-  }
-
-  if (isTomorrow) {
-    return `Mañana · ${time}`;
-  }
-
-  const day = start.toLocaleDateString("es-AR", {
+  return start.toLocaleDateString("es-AR", {
     weekday: "short",
     day: "numeric",
     month: "short",
   });
+}
 
-  return `${day} · ${time}`;
+function formatEventTime(event: UpcomingCalendarEvent) {
+  if (event.allDay) {
+    return "Todo el día";
+  }
+
+  const start = new Date(event.startDate);
+
+  return start.toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+async function openCalendarEvent(event: UpcomingCalendarEvent) {
+  try {
+    if (typeof Calendar.openEventInCalendarAsync === "function") {
+      await Calendar.openEventInCalendarAsync({
+        id: event.id,
+        instanceStartDate: event.startDate,
+      });
+      return;
+    }
+
+    if (typeof Calendar.openEventInCalendar === "function") {
+      Calendar.openEventInCalendar(event.id);
+      return;
+    }
+
+    throw new Error("No calendar open function available");
+  } catch (error) {
+    console.log("Error abriendo evento de calendario:", error);
+
+    Alert.alert(
+      "No pudimos abrir el evento",
+      "Podés verlo desde la app de calendario de tu celular."
+    );
+  }
 }
 
 export function UpcomingEvents() {
@@ -53,17 +82,17 @@ export function UpcomingEvents() {
   const s = makeStyles(colors);
 
   const [loading, setLoading] = useState(true);
-  const [events, setEvents] = useState<UpcomingCalendarEvent[] | null>(null);
+  const [event, setEvent] = useState<UpcomingCalendarEvent | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadEvents = async () => {
       try {
-        const result = await getUpcomingCalendarEvents(7, 4);
+        const result = await getUpcomingCalendarEvents(7, 1);
 
         if (!cancelled) {
-          setEvents(result);
+          setEvent(result?.[0] ?? null);
         }
       } finally {
         if (!cancelled) {
@@ -90,23 +119,37 @@ export function UpcomingEvents() {
           },
         ]}
       >
-        <View style={s.headerRow}>
-          <Feather name="calendar" size={16} color={colors.primary} />
-          <Text style={[s.title, { color: colors.text }]}>
-            Buscando próximos eventos
-          </Text>
+        <View
+          style={[
+            s.iconWrap,
+            {
+              backgroundColor: "rgba(59,130,246,0.14)",
+            },
+          ]}
+        >
           <ActivityIndicator size="small" color={colors.primary} />
+        </View>
+
+        <View style={s.content}>
+          <Text
+            numberOfLines={1}
+            style={[s.mainText, { color: colors.mutedText }]}
+          >
+            Buscando tu próximo evento...
+          </Text>
         </View>
       </View>
     );
   }
 
-  if (!events || events.length === 0) {
+  if (!event) {
     return null;
   }
 
   return (
-    <View
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => openCalendarEvent(event)}
       style={[
         s.card,
         {
@@ -115,44 +158,33 @@ export function UpcomingEvents() {
         },
       ]}
     >
-      <View style={s.headerRow}>
-        <Feather name="calendar" size={16} color={colors.primary} />
-        <Text style={[s.title, { color: colors.text }]}>
-          Próximos eventos
+      <View
+        style={[
+          s.iconWrap,
+          {
+            backgroundColor: "rgba(59,130,246,0.14)",
+          },
+        ]}
+      >
+        <Feather name="calendar" size={18} color={colors.primary} />
+      </View>
+
+      <View style={s.content}>
+        <Text style={[s.metaText, { color: colors.primary }]}>
+          {formatEventDay(event)} · {formatEventTime(event)}
+        </Text>
+
+        <Text
+          numberOfLines={1}
+          ellipsizeMode="tail"
+          style={[s.mainText, { color: colors.text }]}
+        >
+          {event.title}
         </Text>
       </View>
 
-      <View style={s.eventsList}>
-        {events.map((event) => (
-          <View key={event.id} style={s.eventRow}>
-            <View
-              style={[
-                s.eventDot,
-                {
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            />
-
-            <View style={s.eventContent}>
-              <Text
-                numberOfLines={1}
-                style={[s.eventTitle, { color: colors.text }]}
-              >
-                {event.title}
-              </Text>
-
-              <Text
-                numberOfLines={1}
-                style={[s.eventMeta, { color: colors.mutedText }]}
-              >
-                {formatEventDate(event)}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
+      <Feather name="chevron-right" size={18} color={colors.mutedText} />
+    </TouchableOpacity>
   );
 }
 
@@ -160,53 +192,41 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     card: {
       borderWidth: 1,
-      borderRadius: 20,
-      paddingHorizontal: 14,
-      paddingVertical: 13,
-      marginBottom: 12,
-    },
-
-    headerRow: {
+      borderRadius: 18,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      marginBottom: 10,
       flexDirection: "row",
       alignItems: "center",
-      gap: 8,
+      gap: 11,
     },
 
-    title: {
-      flex: 1,
-      fontSize: 15,
-      fontFamily: "Inter_700Bold",
-    },
-
-    eventsList: {
-      marginTop: 10,
-      gap: 10,
-    },
-
-    eventRow: {
-      flexDirection: "row",
+    iconWrap: {
+      width: 40,
+      height: 40,
+      borderRadius: 13,
       alignItems: "center",
-      gap: 10,
+      justifyContent: "center",
+      flexShrink: 0,
     },
 
-    eventDot: {
-      width: 8,
-      height: 8,
-      borderRadius: 4,
-    },
-
-    eventContent: {
+    content: {
       flex: 1,
+      minWidth: 0,
     },
 
-    eventTitle: {
-      fontSize: 14,
-      fontFamily: "Inter_600SemiBold",
-    },
-
-    eventMeta: {
-      marginTop: 2,
+    metaText: {
       fontSize: 12,
-      fontFamily: "Inter_500Medium",
+      lineHeight: 15,
+      fontFamily: "Inter_700Bold",
+      textTransform: "uppercase",
+      letterSpacing: 0.25,
+      marginBottom: 2,
+    },
+
+    mainText: {
+      fontSize: 15,
+      lineHeight: 19,
+      fontFamily: "Inter_700Bold",
     },
   });

@@ -29,6 +29,7 @@ import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { UpcomingEvents } from "@/components/UpcomingEvents";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
@@ -413,7 +414,7 @@ export default function DigestScreen() {
     }
   };
 
-  const handleGenerateNewDigest = useCallback(async () => {
+  const handlePullToRefresh = useCallback(async () => {
     if (!userId || refreshing) return;
 
     setRefreshing(true);
@@ -421,7 +422,15 @@ export default function DigestScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+      /*
+       * Pull-to-refresh ahora significa:
+       * generar un nuevo digest en backend.
+       */
       await api.refreshDigest(userId);
+
+      /*
+       * Luego pedimos el digest actualizado para refrescar la UI.
+       */
       await refetch();
     } catch (error) {
       const message =
@@ -429,40 +438,11 @@ export default function DigestScreen() {
           ? error.message
           : "No pudimos generar un nuevo digest.";
 
-      Alert.alert("No se pudo generar", message);
+      Alert.alert("No se pudo generar un nuevo digest", message);
     } finally {
       setRefreshing(false);
     }
   }, [userId, refreshing, refetch]);
-
-  const confirmGenerateNewDigest = useCallback(() => {
-    if (refreshing) return;
-
-    Alert.alert(
-      "Generar nuevo digest",
-      "Vamos a buscar nuevas noticias para tus temas y armar otro resumen. Puede tardar unos segundos.",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Generar",
-          onPress: handleGenerateNewDigest,
-        },
-      ]
-    );
-  }, [handleGenerateNewDigest, refreshing]);
-
-  const handlePullToRefresh = useCallback(async () => {
-    setRefreshing(true);
-
-    try {
-      await refetch();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refetch]);
 
   const s = makeStyles(colors);
 
@@ -553,37 +533,7 @@ export default function DigestScreen() {
           ) : null}
         </View>
 
-        <View style={s.newDigestRow}>
-          <TouchableOpacity
-            onPress={confirmGenerateNewDigest}
-            disabled={refreshing || isLoading}
-            activeOpacity={0.85}
-            style={[
-              s.newDigestBtn,
-              {
-                borderColor: colors.border,
-                backgroundColor: colors.card,
-                opacity: refreshing || isLoading ? 0.7 : 1,
-              },
-            ]}
-          >
-            {refreshing ? (
-              <>
-                <ActivityIndicator size="small" color={colors.primary} />
-                <Text style={[s.newDigestText, { color: colors.text }]}>
-                  Generando...
-                </Text>
-              </>
-            ) : (
-              <>
-                <Feather name="zap" size={15} color={colors.primary} />
-                <Text style={[s.newDigestText, { color: colors.text }]}>
-                  Nuevo digest
-                </Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </View>
+        <UpcomingEvents />
 
         {isLoading && <DigestLoadingState />}
 
@@ -749,32 +699,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 11,
       fontFamily: "Inter_600SemiBold",
       marginHorizontal: 2,
-    },
-
-    newDigestRow: {
-      width: "100%",
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      marginTop: -2,
-      marginBottom: 12,
-    },
-
-    newDigestBtn: {
-      minHeight: 38,
-      borderRadius: 999,
-      borderWidth: 1,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 7,
-    },
-
-    newDigestText: {
-      fontSize: 12,
-      fontFamily: "Inter_700Bold",
-      letterSpacing: 0.1,
     },
 
     loadingCard: {
