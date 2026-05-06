@@ -24,7 +24,7 @@ import { api } from "@/services/api";
 export default function OnboardingScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { setUserId, clearUserId } = useUser();
+  const { setSession, clearSession } = useUser();
 
   const [name, setName] = useState("");
   const [topics, setTopics] = useState<[string, string, string]>(["", "", ""]);
@@ -37,14 +37,36 @@ export default function OnboardingScreen() {
   const deliveryTime = `${selectedHour}:${selectedMinute}`;
 
   const updateTopic = (index: number, value: string) => {
-    const next: [string, string, string] = [...topics] as [string, string, string];
+    const next: [string, string, string] = [...topics] as [
+      string,
+      string,
+      string
+    ];
     next[index] = value;
     setTopics(next);
   };
 
   const validate = () => {
-    if (!name.trim()) return "Ingresa tu nombre";
-    if (topics.some((t) => !t.trim())) return "Completa los 3 topicos";
+    const cleanName = name.trim();
+    const cleanTopics = topics.map((topic) => topic.trim());
+
+    if (!cleanName) return "Ingresa tu nombre";
+    if (cleanName.length > 60) return "El nombre no puede superar 60 caracteres";
+
+    if (cleanTopics.some((topic) => !topic)) {
+      return "Completa los 3 tópicos";
+    }
+
+    const uniqueTopics = new Set(cleanTopics.map((topic) => topic.toLowerCase()));
+
+    if (uniqueTopics.size !== 3) {
+      return "Los 3 tópicos tienen que ser distintos";
+    }
+
+    if (cleanTopics.some((topic) => topic.length < 2 || topic.length > 40)) {
+      return "Cada tópico debe tener entre 2 y 40 caracteres";
+    }
+
     return null;
   };
 
@@ -58,9 +80,11 @@ export default function OnboardingScreen() {
 
   const confirmTimeSelection = async (nextValue: string) => {
     const [h, m] = nextValue.split(":");
+
     setSelectedHour(h || "08");
     setSelectedMinute(m || "00");
     setTimeModalVisible(false);
+
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch {}
@@ -68,16 +92,20 @@ export default function OnboardingScreen() {
 
   const handleSubmit = async () => {
     const error = validate();
+
     if (error) {
       Alert.alert("Datos incompletos", error);
       return;
     }
 
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } catch {}
+
     setLoading(true);
 
     try {
-      await clearUserId();
+      await clearSession();
 
       const result = await api.createPreferences({
         name: name.trim(),
@@ -86,7 +114,11 @@ export default function OnboardingScreen() {
         isActive,
       });
 
-      await setUserId(result.id);
+      await setSession({
+        userId: result.user.id,
+        authToken: result.authToken,
+      });
+
       router.replace("/(tabs)");
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
@@ -102,117 +134,156 @@ export default function OnboardingScreen() {
     <>
       <KeyboardAvoidingView
         style={[s.root, { backgroundColor: colors.background }]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[
             s.scroll,
-            { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
+            {
+              paddingTop: insets.top + 36,
+              paddingBottom: insets.bottom + 36,
+            },
           ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
         >
           <View style={s.header}>
-            <View style={[s.logoCircle, { backgroundColor: colors.primary }]}>
-              <Feather name="clock" size={28} color="#fff" />
+            <View
+              style={[
+                s.logoCircle,
+                {
+                  backgroundColor: colors.primary,
+                },
+              ]}
+            >
+              <Feather name="zap" size={28} color="#fff" />
             </View>
-            <Text style={[s.appName, { color: colors.foreground }]}>3 Minutos</Text>
-            <Text style={[s.subtitle, { color: colors.mutedForeground }]}>
+
+            <Text style={[s.appName, { color: colors.text }]}>3 Minutos</Text>
+
+            <Text style={[s.subtitle, { color: colors.mutedText }]}>
               Tu digest de noticias personalizado
             </Text>
           </View>
 
           <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>Tu perfil</Text>
+            <Text style={[s.sectionTitle, { color: colors.text }]}>
+              Tu perfil
+            </Text>
 
-            <Text style={[s.label, { color: colors.mutedForeground }]}>Nombre</Text>
+            <Text style={[s.label, { color: colors.text }]}>Nombre</Text>
+
             <TextInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Ej: Mateo"
+              placeholderTextColor={colors.mutedText}
               style={[
                 s.input,
                 {
-                  backgroundColor: colors.card,
                   borderColor: colors.border,
-                  color: colors.foreground,
+                  color: colors.text,
+                  backgroundColor: colors.card,
                 },
               ]}
-              placeholder="Como te llamamos?"
-              placeholderTextColor={colors.mutedForeground}
-              value={name}
-              onChangeText={setName}
               autoCapitalize="words"
+              maxLength={60}
             />
 
-            <Text style={[s.label, { color: colors.mutedForeground }]}>
-              Tus 3 topicos de interes
+            <Text style={[s.label, { color: colors.text }]}>
+              Tus 3 tópicos de interés
             </Text>
-            <Text style={[s.hint, { color: colors.mutedForeground }]}>
-              Ej: tecnologia, economia, ciencia, cultura, deportes...
+
+            <Text style={[s.hint, { color: colors.mutedText }]}>
+              Ej: tecnología, economía, ciencia, cultura, deportes...
             </Text>
 
             {([0, 1, 2] as const).map((i) => (
               <TextInput
                 key={i}
+                value={topics[i]}
+                onChangeText={(v) => updateTopic(i, v)}
+                placeholder={`Tópico ${i + 1}`}
+                placeholderTextColor={colors.mutedText}
                 style={[
                   s.input,
                   {
-                    backgroundColor: colors.card,
                     borderColor: colors.border,
-                    color: colors.foreground,
+                    color: colors.text,
+                    backgroundColor: colors.card,
                   },
                 ]}
-                placeholder={`Topico ${i + 1}`}
-                placeholderTextColor={colors.mutedForeground}
-                value={topics[i]}
-                onChangeText={(v) => updateTopic(i, v)}
                 autoCapitalize="none"
+                maxLength={40}
               />
             ))}
-          </View>
 
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.foreground }]}>
+            <Text style={[s.label, { color: colors.text }]}>
               Horario de entrega
             </Text>
 
             <TouchableOpacity
-              activeOpacity={0.75}
+              activeOpacity={0.85}
               onPress={openTimeModal}
               style={[
                 s.timeRowButton,
                 {
-                  backgroundColor: colors.card,
                   borderColor: colors.border,
+                  backgroundColor: colors.card,
                 },
               ]}
             >
               <View style={s.timeRowLeft}>
-                <View style={[s.timeIconWrap, { backgroundColor: colors.secondary }]}>
-                  <Feather name="clock" size={16} color={colors.mutedForeground} />
+                <View
+                  style={[
+                    s.timeIconWrap,
+                    {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                >
+                  <Feather name="clock" size={18} color="#fff" />
                 </View>
+
                 <View>
-                  <Text style={[s.timeRowTitle, { color: colors.foreground }]}>
+                  <Text style={[s.timeRowTitle, { color: colors.text }]}>
                     Hora de entrega
                   </Text>
-                  <Text style={[s.timeRowSubtitle, { color: colors.mutedForeground }]}>
+                  <Text
+                    style={[
+                      s.timeRowSubtitle,
+                      {
+                        color: colors.mutedText,
+                      },
+                    ]}
+                  >
                     Toca para cambiarla
                   </Text>
                 </View>
               </View>
 
               <View style={s.timeRowRight}>
-                <Text style={[s.timeRowValue, { color: colors.foreground }]}>
+                <Text style={[s.timeRowValue, { color: colors.text }]}>
                   {deliveryTime}
                 </Text>
-                <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={colors.mutedText}
+                />
               </View>
             </TouchableOpacity>
           </View>
 
           <TouchableOpacity
-            style={[s.submitBtn, { backgroundColor: colors.primary, opacity: loading ? 0.7 : 1 }]}
-            onPress={handleSubmit}
+            activeOpacity={0.85}
             disabled={loading}
-            activeOpacity={0.8}
+            onPress={handleSubmit}
+            style={[
+              s.submitBtn,
+              {
+                backgroundColor: loading ? colors.mutedText : colors.primary,
+              },
+            ]}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
@@ -235,9 +306,17 @@ export default function OnboardingScreen() {
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
-    root: { flex: 1 },
-    scroll: { paddingHorizontal: 24 },
-    header: { alignItems: "center", marginBottom: 32, gap: 8 },
+    root: {
+      flex: 1,
+    },
+    scroll: {
+      paddingHorizontal: 24,
+    },
+    header: {
+      alignItems: "center",
+      marginBottom: 32,
+      gap: 8,
+    },
     logoCircle: {
       width: 64,
       height: 64,
@@ -254,7 +333,9 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontFamily: "Inter_400Regular",
       textAlign: "center",
     },
-    section: { marginBottom: 28 },
+    section: {
+      marginBottom: 28,
+    },
     sectionTitle: {
       fontSize: 18,
       fontFamily: "Inter_700Bold",

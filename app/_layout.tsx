@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -19,22 +19,31 @@ import { UserProvider, useUser } from "@/context/UserContext";
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
-
-function RootRedirect() {
-  const { userId, isLoading } = useUser();
-
-  if (isLoading) return null;
-  if (!userId) return <Redirect href="/onboarding" />;
-  return <Redirect href="/(tabs)" />;
-}
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 function RootLayoutNav() {
   const { isLoading } = useUser();
 
   if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <ActivityIndicator />
       </View>
     );
@@ -43,8 +52,8 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
-      <Stack.Screen name="(tabs)" />
       <Stack.Screen name="onboarding" />
+      <Stack.Screen name="(tabs)" />
     </Stack>
   );
 }
@@ -66,18 +75,18 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
 
   return (
-    <SafeAreaProvider>
-      <ErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <UserProvider>
-            <GestureHandlerRootView>
-              <KeyboardProvider>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <KeyboardProvider>
+          <SafeAreaProvider>
+            <QueryClientProvider client={queryClient}>
+              <UserProvider>
                 <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-          </UserProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
-    </SafeAreaProvider>
+              </UserProvider>
+            </QueryClientProvider>
+          </SafeAreaProvider>
+        </KeyboardProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }
