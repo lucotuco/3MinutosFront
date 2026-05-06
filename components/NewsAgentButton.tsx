@@ -29,22 +29,23 @@ export function NewsAgentButton() {
           },
         ]}
       >
-        <Feather name="mic" size={19} color={colors.primary} />
+        <Feather name="mic" size={17} color={colors.primary} />
       </View>
 
       <View style={s.content}>
         <Text style={[s.title, { color: colors.text }]}>
-          Hablar sobre las noticias
+          Hablar sobre estas noticias
         </Text>
+
         <Text
           numberOfLines={1}
           style={[s.subtitle, { color: colors.mutedText }]}
         >
-          Preguntale al agente por contexto, causas o impacto.
+          Preguntale al agente por contexto o impacto.
         </Text>
       </View>
 
-      <Feather name="chevron-right" size={18} color={colors.mutedText} />
+      <Feather name="chevron-right" size={17} color={colors.mutedText} />
     </TouchableOpacity>
   );
 }
@@ -55,17 +56,18 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderWidth: 1,
       borderRadius: 18,
       paddingHorizontal: 12,
-      paddingVertical: 11,
-      marginBottom: 10,
+      paddingVertical: 9,
+      marginTop: 0,
+      marginBottom: 4,
       flexDirection: "row",
       alignItems: "center",
-      gap: 11,
+      gap: 10,
     },
 
     iconWrap: {
-      width: 40,
-      height: 40,
-      borderRadius: 13,
+      width: 34,
+      height: 34,
+      borderRadius: 12,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
@@ -77,15 +79,15 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     title: {
-      fontSize: 15,
-      lineHeight: 19,
+      fontSize: 14,
+      lineHeight: 17,
       fontFamily: "Inter_700Bold",
-      marginBottom: 2,
+      marginBottom: 1,
     },
 
     subtitle: {
-      fontSize: 12,
-      lineHeight: 15,
+      fontSize: 11,
+      lineHeight: 14,
       fontFamily: "Inter_500Medium",
     },
   });

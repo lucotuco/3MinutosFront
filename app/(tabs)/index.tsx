@@ -25,7 +25,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import sponsorLogo from "../../assets/images/banco-comercio.png";
-
+import { NewsAgentButton } from "@/components/NewsAgentButton";
 import { DailyAgendaStrip } from "@/components/DailyAgendaStrip";
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
@@ -570,6 +570,7 @@ export default function DigestScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
+              <NewsAgentButton />
             </>
           )}
       </ScrollView>
