@@ -309,6 +309,20 @@ export const api = {
       authToken: created.authToken,
     };
   },
+  
+async getNewsAgentClientSecret(
+  userId: string
+): Promise<{
+  ok: boolean;
+  clientSecret: string;
+  model: string;
+  digestDate: string | null;
+  contextSource: string | null;
+}> {
+  return request(`/users/${userId}/news-agent/client-secret`, {
+    method: "GET",
+  });
+},
 
   async getPreferences(userId: string): Promise<UserPreferences> {
     const raw = await request(`/users/preferences/${userId}`);

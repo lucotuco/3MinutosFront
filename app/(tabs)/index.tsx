@@ -29,7 +29,7 @@ import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
-import { UpcomingEvents } from "@/components/UpcomingEvents";
+import { NewsAgentButton } from "@/components/NewsAgentButton";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
@@ -533,7 +533,7 @@ export default function DigestScreen() {
           ) : null}
         </View>
 
-        <UpcomingEvents />
+        <NewsAgentButton />
 
         {isLoading && <DigestLoadingState />}
 

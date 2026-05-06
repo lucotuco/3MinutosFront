@@ -18,7 +18,8 @@
       "bundleIdentifier": "com.lucas.threeminutos",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos tu ubicación para mostrar la temperatura actual de tu zona.",
-        "NSUserNotificationUsageDescription": "Usamos notificaciones para avisarte cuando tu resumen diario está listo."
+        "NSUserNotificationUsageDescription": "Usamos notificaciones para avisarte cuando tu resumen diario está listo.",
+        "NSMicrophoneUsageDescription": "3 Minutos usa el micrófono para que puedas hablar con el agente de noticias."
       }
     },
     "android": {
@@ -27,7 +28,8 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "RECORD_AUDIO"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
