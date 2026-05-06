@@ -3,9 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
   Platform,
   RefreshControl,
   ScrollView,
@@ -16,10 +24,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import sponsorLogo from "../../assets/images/banco-comercio.png";
+
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
-import { LoadingState } from "@/components/LoadingState";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
@@ -107,6 +116,153 @@ async function fetchCurrentWeatherLabel(): Promise<string> {
   return `${Math.round(temperature)}° en ${city}`;
 }
 
+function DigestLoadingState() {
+  const colors = useColors();
+  const s = makeStyles(colors);
+
+  const pulse = useRef(new Animated.Value(0.6)).current;
+  const dot1 = useRef(new Animated.Value(0.25)).current;
+  const dot2 = useRef(new Animated.Value(0.25)).current;
+  const dot3 = useRef(new Animated.Value(0.25)).current;
+
+  useEffect(() => {
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0.6,
+          duration: 650,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    const dotsLoop = Animated.loop(
+      Animated.stagger(180, [
+        Animated.sequence([
+          Animated.timing(dot1, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot1, {
+            toValue: 0.25,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(dot2, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot2, {
+            toValue: 0.25,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.sequence([
+          Animated.timing(dot3, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot3, {
+            toValue: 0.25,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    );
+
+    pulseLoop.start();
+    dotsLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      dotsLoop.stop();
+    };
+  }, [dot1, dot2, dot3, pulse]);
+
+  return (
+    <View
+      style={[
+        s.loadingCard,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          s.loadingIconCircle,
+          {
+            backgroundColor: colors.primary,
+            opacity: pulse,
+            transform: [
+              {
+                scale: pulse.interpolate({
+                  inputRange: [0.6, 1],
+                  outputRange: [0.96, 1.08],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <Feather name="zap" size={26} color="#fff" />
+      </Animated.View>
+
+      <Text style={[s.loadingTitle, { color: colors.text }]}>
+        Estamos buscando las mejores noticias para ti
+      </Text>
+
+      <Text style={[s.loadingSubtitle, { color: colors.mutedText }]}>
+        Analizando tus temas, filtrando ruido y preparando tu resumen de 3
+        minutos.
+      </Text>
+
+      <View style={s.dotsRow}>
+        <Animated.View
+          style={[
+            s.dot,
+            {
+              backgroundColor: colors.primary,
+              opacity: dot1,
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            s.dot,
+            {
+              backgroundColor: colors.primary,
+              opacity: dot2,
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            s.dot,
+            {
+              backgroundColor: colors.primary,
+              opacity: dot3,
+            },
+          ]}
+        />
+      </View>
+    </View>
+  );
+}
+
 export default function DigestScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -115,6 +271,7 @@ export default function DigestScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
+
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
     loading: true,
@@ -208,66 +365,104 @@ export default function DigestScreen() {
   }, [sound]);
 
   const handlePlayDigest = async () => {
-  try {
-    if (!data?.digest?.audioUrl) return;
+    try {
+      if (!data?.digest?.audioUrl) return;
 
-    if (sound && playing) {
-      await sound.pauseAsync();
-      setPlaying(false);
-      return;
-    }
-
-    if (sound && !playing) {
-      await sound.playAsync();
-      setPlaying(true);
-      return;
-    }
-
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-      playThroughEarpieceAndroid: false,
-    });
-
-    const { sound: newSound } = await Audio.Sound.createAsync(
-      { uri: data.digest.audioUrl },
-      {
-        shouldPlay: true,
-        volume: 1,
-        isMuted: false,
-      }
-    );
-
-    setSound(newSound);
-    setPlaying(true);
-
-    newSound.setOnPlaybackStatusUpdate((status) => {
-      if (!status.isLoaded) return;
-
-      if (status.didJustFinish) {
+      if (sound && playing) {
+        await sound.pauseAsync();
         setPlaying(false);
-        newSound.setPositionAsync(0).catch(() => {});
+        return;
       }
-    });
-  } catch (error) {
-    console.log("Error reproduciendo digest:", error);
-  }
-};
-  const handleRefresh = useCallback(async () => {
-    if (!userId) return;
+
+      if (sound && !playing) {
+        await sound.playAsync();
+        setPlaying(true);
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: data.digest.audioUrl },
+        {
+          shouldPlay: true,
+          volume: 1,
+          isMuted: false,
+        }
+      );
+
+      setSound(newSound);
+      setPlaying(true);
+
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) return;
+
+        if (status.didJustFinish) {
+          setPlaying(false);
+          newSound.setPositionAsync(0).catch(() => {});
+        }
+      });
+    } catch (error) {
+      console.log("Error reproduciendo digest:", error);
+    }
+  };
+
+  const handleGenerateNewDigest = useCallback(async () => {
+    if (!userId || refreshing) return;
 
     setRefreshing(true);
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      await api.refreshDigest(userId);
       await refetch();
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No pudimos generar un nuevo digest.";
+
+      Alert.alert("No se pudo generar", message);
     } finally {
       setRefreshing(false);
     }
-  }, [userId, refetch]);
+  }, [userId, refreshing, refetch]);
+
+  const confirmGenerateNewDigest = useCallback(() => {
+    if (refreshing) return;
+
+    Alert.alert(
+      "Generar nuevo digest",
+      "Vamos a buscar nuevas noticias para tus temas y armar otro resumen. Puede tardar unos segundos.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Generar",
+          onPress: handleGenerateNewDigest,
+        },
+      ]
+    );
+  }, [handleGenerateNewDigest, refreshing]);
+
+  const handlePullToRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      await refetch();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetch]);
 
   const s = makeStyles(colors);
 
@@ -285,54 +480,47 @@ export default function DigestScreen() {
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          s.header,
-          {
-            paddingTop: topPad + 8,
-            backgroundColor: colors.background,
-          },
-        ]}
-      >
-        <View style={s.brandRow}>
-          <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
-          <Text style={[s.logoText, { color: colors.foreground }]}>
-            Minutos
-          </Text>
-        </View>
+      <View style={[s.header, { paddingTop: topPad + 10 }]}>
+        <View style={s.brandSponsorRow}>
+          <View style={s.brandRow}>
+            <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
+            <Text style={[s.logoText, { color: colors.text }]}> Minutos</Text>
+          </View>
 
-        <TouchableOpacity
-          style={[
-            s.refreshBtn,
-            {
-              backgroundColor: colors.secondary,
-              borderColor: colors.border,
-            },
-          ]}
-          onPress={handleRefresh}
-          disabled={refreshing}
-          activeOpacity={0.7}
-        >
-          {refreshing ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Feather name="refresh-cw" size={16} color={colors.primary} />
-          )}
-        </TouchableOpacity>
+          <View
+            style={[
+              s.sponsorWrapInline,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+              },
+            ]}
+          >
+            <Image
+              source={sponsorLogo}
+              style={s.sponsorLogoInline}
+              resizeMode="contain"
+            />
+          </View>
+        </View>
       </View>
 
       <ScrollView
-        contentContainerStyle={[s.scroll, { paddingBottom: botPad }]}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          s.scroll,
+          {
+            paddingBottom: botPad,
+          },
+        ]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
+            onRefresh={handlePullToRefresh}
             tintColor={colors.primary}
           />
         }
       >
-        <Text style={[s.heroText, { color: colors.foreground }]}>
+        <Text style={[s.heroText, { color: colors.text }]}>
           Buen día{displayName}.
         </Text>
 
@@ -340,42 +528,73 @@ export default function DigestScreen() {
           style={[
             s.infoPill,
             {
-              backgroundColor: colors.secondary,
-              borderColor: colors.border,
+              borderColor: "rgba(255,255,255,0.22)",
+              backgroundColor: "rgba(255,255,255,0.10)",
             },
           ]}
         >
-          <Feather name="calendar" size={13} color={colors.primary} />
+          <Feather name="calendar" size={13} color="#fff" />
 
-          <Text style={[s.infoText, { color: colors.accentForeground }]}>
-            {todayLabel}
-          </Text>
+          <Text style={[s.infoText, { color: "#fff" }]}>{todayLabel}</Text>
 
           {weather.loading ? (
             <>
-              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>
-                •
-              </Text>
-              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={[s.infoDot, { color: "#fff" }]}>•</Text>
+              <ActivityIndicator size="small" color="#fff" />
             </>
           ) : weather.label ? (
             <>
-              <Text style={[s.infoDot, { color: colors.mutedForeground }]}>
-                •
-              </Text>
-              <Feather name="sun" size={13} color={colors.primary} />
-              <Text style={[s.infoText, { color: colors.accentForeground }]}>
+              <Text style={[s.infoDot, { color: "#fff" }]}>•</Text>
+              <Feather name="cloud" size={13} color="#fff" />
+              <Text style={[s.infoText, { color: "#fff" }]}>
                 {weather.label}
               </Text>
             </>
           ) : null}
         </View>
 
-        {isLoading && <LoadingState />}
+        <View style={s.newDigestRow}>
+          <TouchableOpacity
+            onPress={confirmGenerateNewDigest}
+            disabled={refreshing || isLoading}
+            activeOpacity={0.85}
+            style={[
+              s.newDigestBtn,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.card,
+                opacity: refreshing || isLoading ? 0.7 : 1,
+              },
+            ]}
+          >
+            {refreshing ? (
+              <>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[s.newDigestText, { color: colors.text }]}>
+                  Generando...
+                </Text>
+              </>
+            ) : (
+              <>
+                <Feather name="zap" size={15} color={colors.primary} />
+                <Text style={[s.newDigestText, { color: colors.text }]}>
+                  Nuevo digest
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {isLoading && <DigestLoadingState />}
 
         {isError && (
           <ErrorState
-            message={(error as Error)?.message}
+            title="No pudimos cargar tu digest"
+            message={
+              error instanceof Error
+                ? error.message
+                : "Ocurrió un error inesperado."
+            }
             onRetry={() => refetch()}
           />
         )}
@@ -384,11 +603,8 @@ export default function DigestScreen() {
           !isError &&
           (!data?.digest?.items || data.digest.items.length === 0) && (
             <EmptyState
-              icon="book-open"
-              title="No hay noticias aún"
-              description="Tu digest se está preparando. Vuelve más tarde o actualiza manualmente."
-              actionLabel="Actualizar"
-              onAction={handleRefresh}
+              title="Todavía no hay noticias"
+              message="Cuando tengamos artículos relevantes para tus temas, los vas a ver acá."
             />
           )}
 
@@ -399,7 +615,7 @@ export default function DigestScreen() {
             <>
               {data.digest.items.slice(0, 3).map((item, i) => (
                 <DigestCard
-                  key={item.articleId ?? `${item.url ?? ""}-${i}`}
+                  key={`${item.articleId ?? item.url ?? item.title ?? i}`}
                   item={item}
                   index={i}
                 />
@@ -407,35 +623,41 @@ export default function DigestScreen() {
 
               <TouchableOpacity
                 activeOpacity={0.85}
+                onPress={handlePlayDigest}
+                disabled={!data.digest.audioUrl}
                 style={[
                   s.listenButton,
                   {
-                    backgroundColor: colors.secondary,
                     borderColor: colors.border,
-                    opacity: data.digest.audioUrl ? 1 : 0.5,
+                    backgroundColor: colors.card,
+                    opacity: data.digest.audioUrl ? 1 : 0.6,
                   },
                 ]}
-                onPress={handlePlayDigest}
-                disabled={!data.digest.audioUrl}
               >
-                <View style={[s.playCircle, { backgroundColor: colors.primary }]}>
+                <View
+                  style={[
+                    s.playCircle,
+                    {
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                >
                   <Feather
                     name={playing ? "pause" : "play"}
-                    size={16}
-                    color="#FFFFFF"
+                    size={18}
+                    color="#fff"
                   />
                 </View>
 
                 <View style={s.listenTextWrap}>
-                  <Text style={[s.listenTitle, { color: colors.foreground }]}>
+                  <Text style={[s.listenTitle, { color: colors.text }]}>
                     Escuchar resumen
                   </Text>
-                  <Text style={[s.listenSub, { color: colors.mutedForeground }]}>
+
+                  <Text style={[s.listenSub, { color: colors.mutedText }]}>
                     {data.digest.audioUrl ? "Disponible" : "Generando audio"}
                   </Text>
                 </View>
-
-                <Feather name="volume-2" size={18} color={colors.primary} />
               </TouchableOpacity>
             </>
           )}
@@ -449,43 +671,61 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     root: {
       flex: 1,
     },
+
     header: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
       paddingHorizontal: 18,
       paddingBottom: 8,
     },
+
+    brandSponsorRow: {
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+
     brandRow: {
       flexDirection: "row",
       alignItems: "baseline",
+      flexShrink: 0,
     },
+
     logoBlue: {
-      fontSize: 24,
+      fontSize: 31,
       fontFamily: "Inter_700Bold",
     },
+
     logoText: {
-      fontSize: 24,
+      fontSize: 31,
       fontFamily: "Inter_700Bold",
     },
-    refreshBtn: {
-      width: 38,
-      height: 38,
-      borderRadius: 12,
+
+    sponsorWrapInline: {
+      flexShrink: 1,
       borderWidth: 1,
-      alignItems: "center",
-      justifyContent: "center",
+      borderRadius: 12,
+      paddingHorizontal: 8,
+      paddingVertical: 6,
     },
+
+    sponsorLogoInline: {
+      width: 132,
+      height: 38,
+    },
+
     scroll: {
       paddingHorizontal: 18,
       paddingTop: 4,
     },
+
     heroText: {
       fontSize: 24,
       lineHeight: 26,
       fontFamily: "Inter_700Bold",
       marginBottom: 8,
     },
+
     infoPill: {
       flexDirection: "row",
       alignItems: "center",
@@ -496,18 +736,95 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      marginBottom: 12,
+      marginBottom: 8,
     },
+
     infoText: {
       fontSize: 11,
       fontFamily: "Inter_600SemiBold",
       letterSpacing: 0.2,
     },
+
     infoDot: {
       fontSize: 11,
       fontFamily: "Inter_600SemiBold",
       marginHorizontal: 2,
     },
+
+    newDigestRow: {
+      width: "100%",
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      marginTop: -2,
+      marginBottom: 12,
+    },
+
+    newDigestBtn: {
+      minHeight: 38,
+      borderRadius: 999,
+      borderWidth: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 7,
+    },
+
+    newDigestText: {
+      fontSize: 12,
+      fontFamily: "Inter_700Bold",
+      letterSpacing: 0.1,
+    },
+
+    loadingCard: {
+      marginTop: 8,
+      marginBottom: 16,
+      borderWidth: 1,
+      borderRadius: 24,
+      paddingHorizontal: 22,
+      paddingVertical: 26,
+      alignItems: "center",
+    },
+
+    loadingIconCircle: {
+      width: 66,
+      height: 66,
+      borderRadius: 33,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 18,
+    },
+
+    loadingTitle: {
+      fontSize: 20,
+      lineHeight: 25,
+      fontFamily: "Inter_700Bold",
+      textAlign: "center",
+      marginBottom: 8,
+    },
+
+    loadingSubtitle: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontFamily: "Inter_400Regular",
+      textAlign: "center",
+      marginBottom: 18,
+    },
+
+    dotsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+    },
+
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+
     listenButton: {
       marginTop: 2,
       marginBottom: 6,
@@ -519,6 +836,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       gap: 10,
     },
+
     playCircle: {
       width: 36,
       height: 36,
@@ -526,13 +844,16 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       justifyContent: "center",
     },
+
     listenTextWrap: {
       flex: 1,
     },
+
     listenTitle: {
       fontSize: 16,
       fontFamily: "Inter_700Bold",
     },
+
     listenSub: {
       marginTop: 1,
       fontSize: 11,
