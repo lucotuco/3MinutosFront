@@ -1,7 +1,13 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import agentImage from "../assets/images/agent-dan.png";
@@ -16,7 +22,7 @@ export function NewsAgentButton({ dayTitle = "Panadero" }: Props) {
 
   return (
     <TouchableOpacity
-      activeOpacity={0.9}
+      activeOpacity={0.88}
       onPress={() => router.push("/news-agent")}
       style={[
         s.card,
@@ -32,34 +38,24 @@ export function NewsAgentButton({ dayTitle = "Panadero" }: Props) {
             s.badge,
             {
               backgroundColor: "rgba(79,140,255,0.10)",
-              borderColor: "rgba(79,140,255,0.20)",
+              borderColor: "rgba(79,140,255,0.16)",
             },
           ]}
         >
-          <Feather name="calendar" size={12} color={colors.primary} />
-          <Text style={[s.badgeText, { color: colors.accentForeground }]}>
-            HOY ES EL DÍA DEL
+          <Feather name="calendar" size={11} color={colors.primary} />
+          <Text style={[s.badgeText, { color: colors.primary }]}>
+            EFEMÉRIDE
           </Text>
         </View>
 
-        <Text style={[s.dayTitle, { color: colors.text }]} numberOfLines={2}>
-          {dayTitle}
+        <Text
+          numberOfLines={2}
+          adjustsFontSizeToFit
+          minimumFontScale={0.86}
+          style={[s.dayTitle, { color: colors.text }]}
+        >
+          HOY ES EL DÍA DEL {dayTitle.toUpperCase()}
         </Text>
-
-        <View
-          style={[
-            s.askPill,
-            {
-              backgroundColor: "rgba(255,255,255,0.04)",
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <Feather name="mic" size={13} color={colors.primary} />
-          <Text style={[s.askText, { color: colors.text }]}>
-            Tocá para hablar con DAN
-          </Text>
-        </View>
       </View>
 
       <View style={s.rightContent}>
@@ -67,12 +63,29 @@ export function NewsAgentButton({ dayTitle = "Panadero" }: Props) {
           style={[
             s.imageRing,
             {
-              borderColor: colors.primary,
+              borderColor: "rgba(79,140,255,0.32)",
               backgroundColor: "rgba(79,140,255,0.08)",
             },
           ]}
         >
-          <Image source={agentImage} style={s.agentImage} resizeMode="cover" />
+          <Image
+            source={agentImage}
+            style={s.agentImage}
+            resizeMode="cover"
+          />
+        </View>
+
+        <View
+          style={[
+            s.askPill,
+            {
+              backgroundColor: colors.primary,
+              borderColor: "rgba(255,255,255,0.18)",
+            },
+          ]}
+        >
+          <Feather name="mic" size={10} color="#FFFFFF" />
+          <Text style={s.askText}>Tocá para hablar</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -85,21 +98,20 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderWidth: 1,
       borderRadius: 22,
       paddingHorizontal: 14,
-      paddingVertical: 12,
+      paddingVertical: 11,
       marginBottom: 6,
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      gap: 10,
       overflow: "hidden",
-      minHeight: 90,
+      minHeight: 98,
     },
-
     leftContent: {
       flex: 1,
       minWidth: 0,
       justifyContent: "center",
+      paddingRight: 4,
     },
-
     badge: {
       alignSelf: "flex-start",
       flexDirection: "row",
@@ -109,59 +121,54 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 4,
-      marginBottom: 8,
+      marginBottom: 7,
     },
-
     badgeText: {
       fontSize: 10,
       lineHeight: 12,
       fontFamily: "Inter_700Bold",
       letterSpacing: 0.5,
     },
-
     dayTitle: {
-      fontSize: 20,
-      lineHeight: 29,
+      fontSize: 19,
+      lineHeight: 25,
       fontFamily: "Inter_700Bold",
-      marginBottom: 10,
     },
-
-    askPill: {
-      alignSelf: "flex-start",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      borderWidth: 1,
-      borderRadius: 999,
-      paddingHorizontal: 10,
-      paddingVertical: 7,
-    },
-
-    askText: {
-      fontSize: 12,
-      lineHeight: 15,
-      fontFamily: "Inter_600SemiBold",
-    },
-
     rightContent: {
-      width: 90,
+      width: 104,
       alignItems: "center",
       justifyContent: "center",
       flexShrink: 0,
     },
-
     imageRing: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
+      width: 78,
+      height: 78,
+      borderRadius: 39,
       borderWidth: 2.5,
       alignItems: "center",
       justifyContent: "center",
       overflow: "hidden",
     },
-
     agentImage: {
       width: "100%",
       height: "100%",
+    },
+    askPill: {
+      marginTop: -6,
+      alignSelf: "flex-end",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      maxWidth: 100,
+    },
+    askText: {
+      color: "#FFFFFF",
+      fontSize: 10,
+      lineHeight: 12,
+      fontFamily: "Inter_700Bold",
     },
   });
