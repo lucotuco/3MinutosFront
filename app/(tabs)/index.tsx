@@ -570,7 +570,7 @@ export default function DigestScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
-              <NewsAgentButton />
+              <NewsAgentButton dayTitle="Panadero" />
             </>
           )}
       </ScrollView>
