@@ -12,7 +12,7 @@ interface DigestCardProps {
   index: number;
 }
 
-const rankColors = ["#EF4444", "#22C55E", "#3B82F6"];
+const rankColors = ["#EF4444", "#3B82F6","#22C55E"];
 
 export function DigestCard({ item, index }: DigestCardProps) {
   const colors = useColors();

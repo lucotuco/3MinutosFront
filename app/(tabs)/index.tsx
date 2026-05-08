@@ -454,7 +454,7 @@ export default function DigestScreen() {
         <View style={s.brandSponsorRow}>
           <View style={s.brandRow}>
             <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
-            <Text style={[s.logoText, { color: colors.text }]}> Minutos</Text>
+            <Text style={[s.logoText, { color: colors.text }]}>Minutos</Text>
           </View>
 
           <View
@@ -590,41 +590,39 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     brandSponsorRow: {
-      width: "100%",
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    },
-
-    brandRow: {
-      flexDirection: "row",
-      alignItems: "baseline",
-      flexShrink: 0,
-    },
-
-    logoBlue: {
-      fontSize: 30,
-      fontFamily: "Inter_700Bold",
-    },
-
-    logoText: {
-      fontSize: 30,
-      fontFamily: "Inter_700Bold",
-    },
-
-    sponsorWrapInline: {
-      flexShrink: 1,
-      borderWidth: 1,
-      borderRadius: 11,
-      paddingHorizontal: 8,
-      paddingVertical: 5,
-    },
-
-    sponsorLogoInline: {
-      width: 126,
-      height: 34,
-    },
+  width: "100%",
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 8,
+},
+brandRow: {
+  flexDirection: "row",
+  alignItems: "baseline",
+  flexShrink: 0,
+  letterSpacing: -1,
+},
+logoBlue: {
+  fontSize: 31,
+  fontFamily: "Inter_700Bold",
+  marginRight: -1,
+},
+logoText: {
+  fontSize: 31,
+  fontFamily: "Inter_700Bold",
+  marginLeft: -1,
+},
+sponsorWrapInline: {
+  flexShrink: 1,
+  borderWidth: 1,
+  borderRadius: 12,
+  paddingHorizontal: 7,
+  paddingVertical: 4,
+},
+sponsorLogoInline: {
+  width: 158,
+  height: 43,
+},
 
     scroll: {
       paddingHorizontal: 18,
@@ -681,7 +679,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
 
     listenButton: {
       marginTop: 0,
-      marginBottom: 4,
+      marginBottom: 8,
       borderRadius: 18,
       borderWidth: 1,
       paddingHorizontal: 14,

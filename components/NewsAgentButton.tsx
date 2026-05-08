@@ -99,7 +99,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderRadius: 22,
       paddingHorizontal: 14,
       paddingVertical: 11,
-      marginBottom: 6,
+      marginBottom: 8,
       flexDirection: "row",
       alignItems: "center",
       gap: 10,
