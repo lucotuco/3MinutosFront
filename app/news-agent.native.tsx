@@ -271,15 +271,12 @@ export default function NewsAgentScreen() {
           },
         });
 
-        // Después pedimos UNA respuesta.
-        // Importante: tiene que ser solo ["audio"].
-        // ["audio", "text"] rompe con invalid_value.
         sendClientEvent({
           type: "response.create",
           response: {
             output_modalities: ["audio"],
             instructions:
-              "Respondé al mensaje inicial del usuario. Empezá vos la conversación. Saludá breve, cálido y cercano, como Dan Coach Virtual. Preguntá cuál de las noticias del digest quiere discutir. No des un resumen largo todavía. No esperes a que el usuario hable primero.",
+              "Respondé al mensaje inicial del usuario. Empezá vos la conversación. Saludá breve, cálido y cercano, como Dan Agente Virtual. Preguntá cuál de las noticias del digest quiere discutir. No des un resumen largo todavía. No esperes a que el usuario hable primero.",
           },
         });
       };
