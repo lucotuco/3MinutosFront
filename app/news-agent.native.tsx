@@ -52,15 +52,27 @@ export default function NewsAgentScreen() {
   const insets = useSafeAreaInsets();
   const { userId } = useUser();
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
+  const pcRef = useRef<any>(null);
   const dcRef = useRef<any>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const startingRef = useRef(false);
 
+  const introSentRef = useRef(false);
+  const introInProgressRef = useRef(false);
+  const responseInProgressRef = useRef(false);
+
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
   const [digestDate, setDigestDate] = useState<string | null>(null);
+
+  const setLocalMicEnabled = useCallback((enabled: boolean) => {
+    try {
+      localStreamRef.current?.getAudioTracks?.().forEach((track: any) => {
+        track.enabled = enabled;
+      });
+    } catch {}
+  }, []);
 
   const cleanup = useCallback(async () => {
     try {
@@ -88,13 +100,13 @@ export default function NewsAgentScreen() {
     } catch {}
 
     try {
-      localStreamRef.current?.getTracks?.().forEach((track) => {
+      localStreamRef.current?.getTracks?.().forEach((track: any) => {
         track.stop();
       });
     } catch {}
 
     try {
-      remoteStreamRef.current?.getTracks?.().forEach((track) => {
+      remoteStreamRef.current?.getTracks?.().forEach((track: any) => {
         track.stop();
       });
     } catch {}
@@ -103,7 +115,11 @@ export default function NewsAgentScreen() {
     pcRef.current = null;
     localStreamRef.current = null;
     remoteStreamRef.current = null;
+
     startingRef.current = false;
+    introSentRef.current = false;
+    introInProgressRef.current = false;
+    responseInProgressRef.current = false;
 
     setStatus("idle");
   }, []);
@@ -119,12 +135,15 @@ export default function NewsAgentScreen() {
     }
 
     startingRef.current = true;
+    introSentRef.current = false;
+    introInProgressRef.current = false;
+    responseInProgressRef.current = false;
+
     setStatus("connecting");
     setTranscript("");
 
     try {
       const secretResponse = await api.getNewsAgentClientSecret(userId);
-
       setDigestDate(secretResponse.digestDate);
 
       const stream = await mediaDevices.getUserMedia({
@@ -134,19 +153,82 @@ export default function NewsAgentScreen() {
 
       localStreamRef.current = stream;
 
+      // Arrancamos con el micrófono apagado para que el VAD no corte
+      // la primera respuesta de Dan por ruido ambiente.
+      setLocalMicEnabled(false);
+
       const pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
       });
 
       pcRef.current = pc;
 
-      stream.getTracks().forEach((track) => {
+      const sendClientEvent = (event: any) => {
+        const dc = dcRef.current;
+
+        if (!dc || dc.readyState !== "open") {
+          return false;
+        }
+
+        dc.send(JSON.stringify(event));
+        return true;
+      };
+
+      const enableMicAfterIntro = () => {
+        if (!introInProgressRef.current) {
+          return;
+        }
+
+        introInProgressRef.current = false;
+        setLocalMicEnabled(true);
+      };
+
+      const sendAgentIntro = () => {
+        if (introSentRef.current || responseInProgressRef.current) {
+          return;
+        }
+
+        const sentUserMessage = sendClientEvent({
+          type: "conversation.item.create",
+          item: {
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text:
+                  "Arrancá vos la conversación. Saludame brevemente como Dan Coach Virtual y preguntame qué noticia del digest quiero conversar.",
+              },
+            ],
+          },
+        });
+
+        if (!sentUserMessage) {
+          return;
+        }
+
+        introSentRef.current = true;
+        introInProgressRef.current = true;
+        responseInProgressRef.current = true;
+
+        setTranscript("Dan está arrancando la conversación...\n\n");
+
+        sendClientEvent({
+          type: "response.create",
+          response: {
+            output_modalities: ["audio", "text"],
+            instructions:
+              "Respondé al mensaje inicial del usuario. Empezá vos la conversación. Saludá breve, cálido y cercano, como Dan Coach Virtual. Preguntá cuál de las noticias del digest quiere discutir. No des un resumen largo todavía. No esperes a que el usuario hable primero.",
+          },
+        });
+      };
+
+      stream.getTracks().forEach((track: any) => {
         pc.addTrack(track, stream);
       });
 
       pc.addEventListener("track", (event: any) => {
         const [remoteStream] = event.streams || [];
-
         if (remoteStream) {
           remoteStreamRef.current = remoteStream;
         }
@@ -173,13 +255,40 @@ export default function NewsAgentScreen() {
 
       dc.onopen = () => {
         setStatus("connected");
+
+        // Único lugar donde se dispara la intro.
+        // No lo mandamos también después del setRemoteDescription para evitar doble respuesta.
+        sendAgentIntro();
       };
 
       dc.onmessage = (message: any) => {
         try {
           const event = JSON.parse(message.data);
-          const text = getEventText(event);
 
+          if (event.type === "response.created") {
+            responseInProgressRef.current = true;
+          }
+
+          if (event.type === "response.done") {
+            responseInProgressRef.current = false;
+            enableMicAfterIntro();
+          }
+
+          if (
+            event.type === "response.cancelled" ||
+            event.type === "response.failed"
+          ) {
+            responseInProgressRef.current = false;
+            enableMicAfterIntro();
+          }
+
+          if (event.type === "error") {
+            console.log("[news-agent] realtime event error:", event);
+            responseInProgressRef.current = false;
+            enableMicAfterIntro();
+          }
+
+          const text = getEventText(event);
           if (text) {
             setTranscript((prev) => prev + text);
           }
@@ -216,7 +325,6 @@ export default function NewsAgentScreen() {
       );
     } catch (error) {
       console.log("[news-agent] realtime error:", error);
-
       setStatus("error");
 
       Alert.alert(
@@ -230,7 +338,7 @@ export default function NewsAgentScreen() {
     } finally {
       startingRef.current = false;
     }
-  }, [cleanup, userId]);
+  }, [cleanup, setLocalMicEnabled, userId]);
 
   const stopSession = useCallback(async () => {
     await cleanup();
@@ -242,10 +350,19 @@ export default function NewsAgentScreen() {
   const s = makeStyles(colors);
 
   return (
-    <View style={[s.root, { backgroundColor: colors.background }]}>
-      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+    <View
+      style={[
+        s.root,
+        {
+          backgroundColor: colors.background,
+          paddingTop: insets.top + 12,
+          paddingBottom: insets.bottom + 12,
+        },
+      ]}
+    >
+      <View style={s.header}>
         <TouchableOpacity
-          activeOpacity={0.85}
+          activeOpacity={0.82}
           onPress={() => {
             cleanup();
             router.back();
@@ -265,8 +382,7 @@ export default function NewsAgentScreen() {
           <Text style={[s.title, { color: colors.text }]}>
             Agente de noticias
           </Text>
-
-          <Text style={[s.subtitle, { color: colors.mutedText }]}>
+          <Text style={[s.subtitle, { color: colors.muted }]}>
             {digestDate
               ? `Contexto del digest: ${digestDate}`
               : "Conversá por voz sobre tus noticias."}
@@ -282,24 +398,24 @@ export default function NewsAgentScreen() {
           style={[
             s.micButton,
             {
-              backgroundColor: isConnected ? "#ef4444" : colors.primary,
+              backgroundColor: isConnected ? "#EF4444" : colors.primary,
               opacity: isConnecting ? 0.75 : 1,
             },
           ]}
         >
           {isConnecting ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Feather
               name={isConnected ? "square" : "mic"}
-              size={38}
-              color="#fff"
+              size={34}
+              color="#FFFFFF"
             />
           )}
         </TouchableOpacity>
 
         <Text style={[s.statusText, { color: colors.text }]}>
-          {status === "idle" && "Tocá para empezar a hablar"}
+          {status === "idle" && "Tocá para empezar"}
           {status === "connecting" && "Conectando con el agente..."}
           {status === "connected" && "Escuchando. Tocá para cortar."}
           {status === "error" && "Hubo un problema al conectar."}
@@ -320,7 +436,7 @@ export default function NewsAgentScreen() {
           Transcripción
         </Text>
 
-        <Text style={[s.transcriptText, { color: colors.mutedText }]}>
+        <Text style={[s.transcriptText, { color: colors.muted }]}>
           {transcript.trim() || "La conversación va a aparecer acá."}
         </Text>
       </ScrollView>
@@ -334,14 +450,12 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       flex: 1,
       paddingHorizontal: 18,
     },
-
     header: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
       marginBottom: 22,
     },
-
     backBtn: {
       width: 42,
       height: 42,
@@ -350,27 +464,22 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       justifyContent: "center",
     },
-
     headerText: {
       flex: 1,
     },
-
     title: {
       fontSize: 22,
       fontFamily: "Inter_700Bold",
     },
-
     subtitle: {
       marginTop: 2,
       fontSize: 13,
       fontFamily: "Inter_500Medium",
     },
-
     center: {
       alignItems: "center",
       marginBottom: 24,
     },
-
     micButton: {
       width: 104,
       height: 104,
@@ -379,31 +488,26 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       justifyContent: "center",
       marginBottom: 14,
     },
-
     statusText: {
       fontSize: 15,
       fontFamily: "Inter_600SemiBold",
       textAlign: "center",
     },
-
     transcriptCard: {
       flex: 1,
       borderWidth: 1,
       borderRadius: 22,
       marginBottom: Platform.OS === "ios" ? 28 : 18,
     },
-
     transcriptContent: {
       padding: 16,
       paddingBottom: 28,
     },
-
     transcriptTitle: {
       fontSize: 16,
       fontFamily: "Inter_700Bold",
       marginBottom: 8,
     },
-
     transcriptText: {
       fontSize: 14,
       lineHeight: 20,
