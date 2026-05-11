@@ -25,28 +25,6 @@ import { api } from "@/services/api";
 
 type Status = "idle" | "connecting" | "connected" | "error";
 
-function getEventText(event: any) {
-  if (!event || typeof event !== "object") return "";
-
-  if (event.type === "response.output_text.delta") {
-    return event.delta || "";
-  }
-
-  if (event.type === "response.output_audio_transcript.delta") {
-    return event.delta || "";
-  }
-
-  if (event.type === "conversation.item.input_audio_transcription.completed") {
-    return event.transcript ? `\n\nVos: ${event.transcript}\n` : "";
-  }
-
-  if (event.type === "response.done") {
-    return "\n";
-  }
-
-  return "";
-}
-
 export default function NewsAgentScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -61,6 +39,13 @@ export default function NewsAgentScreen() {
   const introSentRef = useRef(false);
   const introInProgressRef = useRef(false);
   const responseInProgressRef = useRef(false);
+  const introTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scrollRef = useRef<ScrollView | null>(null);
+  const transcriptRef = useRef("");
+  const transcriptFlushTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
@@ -74,7 +59,59 @@ export default function NewsAgentScreen() {
     } catch {}
   }, []);
 
+  const flushTranscriptToScreen = useCallback(() => {
+    setTranscript(transcriptRef.current);
+
+    setTimeout(() => {
+      scrollRef.current?.scrollToEnd?.({ animated: true });
+    }, 50);
+  }, []);
+
+  const scheduleTranscriptFlush = useCallback(() => {
+    if (transcriptFlushTimeoutRef.current) {
+      return;
+    }
+
+    transcriptFlushTimeoutRef.current = setTimeout(() => {
+      transcriptFlushTimeoutRef.current = null;
+      flushTranscriptToScreen();
+    }, 200);
+  }, [flushTranscriptToScreen]);
+
+  const appendTranscript = useCallback(
+    (text: string, flushNow = false) => {
+      if (!text) {
+        return;
+      }
+
+      transcriptRef.current += text;
+
+      if (flushNow) {
+        if (transcriptFlushTimeoutRef.current) {
+          clearTimeout(transcriptFlushTimeoutRef.current);
+          transcriptFlushTimeoutRef.current = null;
+        }
+
+        flushTranscriptToScreen();
+        return;
+      }
+
+      scheduleTranscriptFlush();
+    },
+    [flushTranscriptToScreen, scheduleTranscriptFlush]
+  );
+
   const cleanup = useCallback(async () => {
+    if (introTimeoutRef.current) {
+      clearTimeout(introTimeoutRef.current);
+      introTimeoutRef.current = null;
+    }
+
+    if (transcriptFlushTimeoutRef.current) {
+      clearTimeout(transcriptFlushTimeoutRef.current);
+      transcriptFlushTimeoutRef.current = null;
+    }
+
     try {
       if (dcRef.current?.readyState === "open") {
         dcRef.current.send(
@@ -139,7 +176,18 @@ export default function NewsAgentScreen() {
     introInProgressRef.current = false;
     responseInProgressRef.current = false;
 
+    if (introTimeoutRef.current) {
+      clearTimeout(introTimeoutRef.current);
+      introTimeoutRef.current = null;
+    }
+
+    if (transcriptFlushTimeoutRef.current) {
+      clearTimeout(transcriptFlushTimeoutRef.current);
+      transcriptFlushTimeoutRef.current = null;
+    }
+
     setStatus("connecting");
+    transcriptRef.current = "";
     setTranscript("");
 
     try {
@@ -153,8 +201,8 @@ export default function NewsAgentScreen() {
 
       localStreamRef.current = stream;
 
-      // Arrancamos con el micrófono apagado para que el VAD no corte
-      // la primera respuesta de Dan por ruido ambiente.
+      // Arrancamos con el mic apagado para que el VAD no corte
+      // la primera respuesta del agente por ruido ambiente.
       setLocalMicEnabled(false);
 
       const pc = new RTCPeerConnection({
@@ -184,11 +232,31 @@ export default function NewsAgentScreen() {
       };
 
       const sendAgentIntro = () => {
-        if (introSentRef.current || responseInProgressRef.current) {
+        if (introSentRef.current) {
           return;
         }
 
-        const sentUserMessage = sendClientEvent({
+        const dc = dcRef.current;
+
+        if (!dc || dc.readyState !== "open") {
+          return;
+        }
+
+        if (introTimeoutRef.current) {
+          clearTimeout(introTimeoutRef.current);
+          introTimeoutRef.current = null;
+        }
+
+        introSentRef.current = true;
+        introInProgressRef.current = true;
+        responseInProgressRef.current = true;
+
+        transcriptRef.current = "Dan está arrancando la conversación...\n\n";
+        flushTranscriptToScreen();
+
+        // Primero metemos un mensaje artificial del usuario.
+        // Esto fuerza al modelo a responder como si el usuario hubiera pedido que arranque.
+        sendClientEvent({
           type: "conversation.item.create",
           item: {
             type: "message",
@@ -203,24 +271,28 @@ export default function NewsAgentScreen() {
           },
         });
 
-        if (!sentUserMessage) {
-          return;
-        }
-
-        introSentRef.current = true;
-        introInProgressRef.current = true;
-        responseInProgressRef.current = true;
-
-        setTranscript("Dan está arrancando la conversación...\n\n");
-
+        // Después pedimos UNA respuesta.
+        // Importante: tiene que ser solo ["audio"].
+        // ["audio", "text"] rompe con invalid_value.
         sendClientEvent({
           type: "response.create",
           response: {
-            output_modalities: ["audio", "text"],
+            output_modalities: ["audio"],
             instructions:
               "Respondé al mensaje inicial del usuario. Empezá vos la conversación. Saludá breve, cálido y cercano, como Dan Coach Virtual. Preguntá cuál de las noticias del digest quiere discutir. No des un resumen largo todavía. No esperes a que el usuario hable primero.",
           },
         });
+      };
+
+      const scheduleAgentIntro = () => {
+        if (introSentRef.current || introTimeoutRef.current) {
+          return;
+        }
+
+        introTimeoutRef.current = setTimeout(() => {
+          introTimeoutRef.current = null;
+          sendAgentIntro();
+        }, 350);
       };
 
       stream.getTracks().forEach((track: any) => {
@@ -239,6 +311,7 @@ export default function NewsAgentScreen() {
 
         if (state === "connected") {
           setStatus("connected");
+          scheduleAgentIntro();
         }
 
         if (
@@ -255,10 +328,7 @@ export default function NewsAgentScreen() {
 
       dc.onopen = () => {
         setStatus("connected");
-
-        // Único lugar donde se dispara la intro.
-        // No lo mandamos también después del setRemoteDescription para evitar doble respuesta.
-        sendAgentIntro();
+        scheduleAgentIntro();
       };
 
       dc.onmessage = (message: any) => {
@@ -267,11 +337,25 @@ export default function NewsAgentScreen() {
 
           if (event.type === "response.created") {
             responseInProgressRef.current = true;
+            appendTranscript("\nDan: ", true);
+          }
+
+          if (event.type === "response.output_audio_transcript.delta") {
+            appendTranscript(event.delta || "");
+          }
+
+          if (event.type === "conversation.item.input_audio_transcription.completed") {
+            const userText = event.transcript || "";
+
+            if (userText.trim()) {
+              appendTranscript(`\n\nVos: ${userText}\n`, true);
+            }
           }
 
           if (event.type === "response.done") {
             responseInProgressRef.current = false;
             enableMicAfterIntro();
+            appendTranscript("\n", true);
           }
 
           if (
@@ -288,11 +372,12 @@ export default function NewsAgentScreen() {
             enableMicAfterIntro();
           }
 
-          const text = getEventText(event);
-          if (text) {
-            setTranscript((prev) => prev + text);
-          }
-        } catch {}
+          // No agregamos response.output_audio_transcript.done al texto,
+          // porque ya fuimos agregando todos los delta. Si agregás el done,
+          // duplicás toda la respuesta.
+        } catch (error) {
+          console.log("[news-agent] invalid realtime message:", error);
+        }
       };
 
       const offer = await pc.createOffer({});
@@ -323,6 +408,10 @@ export default function NewsAgentScreen() {
           sdp: answerSdp,
         })
       );
+
+      // Fallback: si el data channel abrió antes/después, intentamos programar la intro.
+      // scheduleAgentIntro tiene guard contra doble disparo.
+      scheduleAgentIntro();
     } catch (error) {
       console.log("[news-agent] realtime error:", error);
       setStatus("error");
@@ -338,7 +427,13 @@ export default function NewsAgentScreen() {
     } finally {
       startingRef.current = false;
     }
-  }, [cleanup, setLocalMicEnabled, userId]);
+  }, [
+    appendTranscript,
+    cleanup,
+    flushTranscriptToScreen,
+    setLocalMicEnabled,
+    userId,
+  ]);
 
   const stopSession = useCallback(async () => {
     await cleanup();
@@ -415,7 +510,7 @@ export default function NewsAgentScreen() {
         </TouchableOpacity>
 
         <Text style={[s.statusText, { color: colors.text }]}>
-          {status === "idle" && "Tocá para empezar"}
+          {status === "idle" && "Tocá para empezar a hablar"}
           {status === "connecting" && "Conectando con el agente..."}
           {status === "connected" && "Escuchando. Tocá para cortar."}
           {status === "error" && "Hubo un problema al conectar."}
@@ -423,6 +518,7 @@ export default function NewsAgentScreen() {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={[
           s.transcriptCard,
           {
@@ -431,12 +527,15 @@ export default function NewsAgentScreen() {
           },
         ]}
         contentContainerStyle={s.transcriptContent}
+        onContentSizeChange={() => {
+          scrollRef.current?.scrollToEnd?.({ animated: true });
+        }}
       >
         <Text style={[s.transcriptTitle, { color: colors.text }]}>
           Transcripción
         </Text>
 
-        <Text style={[s.transcriptText, { color: colors.muted }]}>
+        <Text style={[s.transcriptText, { color: colors.text }]}>
           {transcript.trim() || "La conversación va a aparecer acá."}
         </Text>
       </ScrollView>
