@@ -1,23 +1,24 @@
-import React from "react";
-import {
-  FlatList,
-  Linking,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import React, { useEffect } from "react";
+import {
+    FlatList,
+    Linking,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { useColors } from "@/hooks/useColors";
-import { useUser } from "@/context/UserContext";
-import { api, ShownArticle } from "@/services/api";
-import { LoadingState } from "@/components/LoadingState";
-import { ErrorState } from "@/components/ErrorState";
 import { EmptyState } from "@/components/EmptyState";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
+import { useUser } from "@/context/UserContext";
+import { useColors } from "@/hooks/useColors";
+import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
+import { api, ShownArticle } from "@/services/api";
 
 function formatDate(iso: string) {
   try {
@@ -145,6 +146,7 @@ export default function HistoryScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId } = useUser();
+  const { handleError } = useHandleUserNotFound();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["shown-articles", userId],
@@ -152,6 +154,12 @@ export default function HistoryScreen() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
   });
+
+  useEffect(() => {
+    if (error) {
+      handleError(error);
+    }
+  }, [error, handleError]);
 
   const s = makeStyles(colors);
   const topPad = Platform.OS === "web" ? 67 : insets.top;

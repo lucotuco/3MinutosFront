@@ -3,36 +3,36 @@ import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
+import {
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Animated,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import sponsorLogo from "../../assets/images/banco-comercio.png";
-import { NewsAgentButton } from "@/components/NewsAgentButton";
 import { DailyAgendaStrip } from "@/components/DailyAgendaStrip";
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
+import { NewsAgentButton } from "@/components/NewsAgentButton";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
+import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
 import { api } from "@/services/api";
+import sponsorLogo from "../../assets/images/banco-comercio.png";
 
 type WeatherState = {
   label: string;
@@ -268,6 +268,7 @@ export default function DigestScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { userId } = useUser();
+  const { handleError } = useHandleUserNotFound();
 
   const [refreshing, setRefreshing] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -286,6 +287,12 @@ export default function DigestScreen() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
   });
+
+  useEffect(() => {
+    if (error) {
+      handleError(error);
+    }
+  }, [error, handleError]);
 
   useEffect(() => {
     const configureAudio = async () => {

@@ -142,8 +142,9 @@ async function request<T = unknown>(
     const error = new Error(message) as ApiError;
     error.status = response.status;
     error.code = data?.code;
-    error.shouldClearLocalSession = Boolean(data?.shouldClearLocalSession);
-
+    error.shouldClearLocalSession = 
+      Boolean(data?.shouldClearLocalSession) || 
+      response.status === 404;
     throw error;
   }
 

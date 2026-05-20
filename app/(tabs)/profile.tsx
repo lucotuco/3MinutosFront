@@ -1,28 +1,29 @@
-import * as Haptics from "expo-haptics";
-import React, { useEffect, useMemo, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as Haptics from "expo-haptics";
+import { useEffect, useMemo, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
 import { TimePickerField } from "@/components/TimePickerField";
 import { TopicPicker } from "@/components/TopicPicker";
-import { useColors } from "@/hooks/useColors";
 import { useUser } from "@/context/UserContext";
+import { useColors } from "@/hooks/useColors";
+import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
 import { api } from "@/services/api";
-import { LoadingState } from "@/components/LoadingState";
-import { ErrorState } from "@/components/ErrorState";
 
 function parseDeliveryTime(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
@@ -35,6 +36,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { userId, clearUserId } = useUser();
   const queryClient = useQueryClient();
+  const { handleError } = useHandleUserNotFound();
 
   const [name, setName] = useState("");
   const [topics, setTopics] = useState<string[]>(["", "", ""]);
@@ -56,6 +58,12 @@ export default function ProfileScreen() {
     queryFn: () => api.getPreferences(userId!),
     enabled: !!userId,
   });
+
+  useEffect(() => {
+    if (error) {
+      handleError(error);
+    }
+  }, [error, handleError]);
 
   useEffect(() => {
     if (data) {
