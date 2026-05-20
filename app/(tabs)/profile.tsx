@@ -9,7 +9,6 @@ import {
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -18,6 +17,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { TimePickerField } from "@/components/TimePickerField";
+import { TopicPicker } from "@/components/TopicPicker";
 import { useColors } from "@/hooks/useColors";
 import { useUser } from "@/context/UserContext";
 import { api } from "@/services/api";
@@ -26,13 +26,8 @@ import { ErrorState } from "@/components/ErrorState";
 
 function parseDeliveryTime(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
-  if (!match) {
-    return { hour: "08", minute: "00" };
-  }
-  return {
-    hour: match[1],
-    minute: match[2],
-  };
+  if (!match) return { hour: "08", minute: "00" };
+  return { hour: match[1], minute: match[2] };
 }
 
 export default function ProfileScreen() {
@@ -42,10 +37,11 @@ export default function ProfileScreen() {
   const queryClient = useQueryClient();
 
   const [name, setName] = useState("");
-  const [topics, setTopics] = useState<[string, string, string]>(["", "", ""]);
+  const [topics, setTopics] = useState<string[]>(["", "", ""]);
   const [selectedHour, setSelectedHour] = useState("08");
   const [selectedMinute, setSelectedMinute] = useState("00");
   const [timeModalVisible, setTimeModalVisible] = useState(false);
+  const [topicPickerVisible, setTopicPickerVisible] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -64,8 +60,7 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (data) {
       setName(data.name ?? "");
-      const t = data.topics ?? ["", "", ""];
-      setTopics([t[0] ?? "", t[1] ?? "", t[2] ?? ""] as [string, string, string]);
+      setTopics(data.topics ?? ["", "", ""]);
       const parsed = parseDeliveryTime(data.deliveryTime ?? "08:00");
       setSelectedHour(parsed.hour);
       setSelectedMinute(parsed.minute);
@@ -76,36 +71,10 @@ export default function ProfileScreen() {
 
   const markDirty = () => setIsDirty(true);
 
-  const updateTopic = (index: number, value: string) => {
-    const next: [string, string, string] = [...topics] as [string, string, string];
-    next[index] = value;
-    setTopics(next);
-    markDirty();
-  };
-
-  const openTimeModal = () => {
-    setTimeModalVisible(true);
-  };
-
-  const closeTimeModal = () => {
-    setTimeModalVisible(false);
-  };
-
-  const confirmTimeSelection = async (nextValue: string) => {
-    const [h, m] = nextValue.split(":");
-    setSelectedHour(h || "08");
-    setSelectedMinute(m || "00");
-    setTimeModalVisible(false);
-    markDirty();
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-  };
-
   const handleSave = async () => {
     if (!userId) return;
-    if (!name.trim() || topics.some((t) => !t.trim())) {
-      Alert.alert("Campos requeridos", "Nombre y los 3 topicos son obligatorios.");
+    if (!name.trim() || topics.filter((t) => t.trim()).length < 3) {
+      Alert.alert("Campos requeridos", "Nombre y 3 tópicos son obligatorios.");
       return;
     }
 
@@ -115,7 +84,7 @@ export default function ProfileScreen() {
     try {
       await api.updatePreferences(userId, {
         name: name.trim(),
-        topics: [topics[0].trim(), topics[1].trim(), topics[2].trim()],
+        topics: [topics[0].trim(), topics[1].trim(), topics[2].trim()] as [string, string, string],
         deliveryTime,
         isActive,
       });
@@ -132,19 +101,17 @@ export default function ProfileScreen() {
   };
 
   const confirmLogout = () => {
-    Alert.alert("Cerrar sesion", "Se borrara tu usuario guardado localmente. Continuar?", [
+    Alert.alert("Cerrar sesion", "Se borrará tu usuario guardado localmente. Continuar?", [
       { text: "Cancelar", style: "cancel" },
-      {
-        text: "Salir",
-        style: "destructive",
-        onPress: () => clearUserId(),
-      },
+      { text: "Salir", style: "destructive", onPress: () => clearUserId() },
     ]);
   };
 
   const s = makeStyles(colors);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
+
+  const selectedTopics = topics.filter((t) => t.trim());
 
   return (
     <>
@@ -170,12 +137,7 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {isLoading && (
-          <View style={{ padding: 20 }}>
-            <LoadingState />
-          </View>
-        )}
-
+        {isLoading && <View style={{ padding: 20 }}><LoadingState /></View>}
         {isError && <ErrorState message={(error as Error)?.message} onRetry={() => refetch()} />}
 
         {!isLoading && !isError && (
@@ -184,106 +146,89 @@ export default function ProfileScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Nombre */}
             <View style={s.section}>
               <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Nombre</Text>
-              <TextInput
-                style={[
-                  s.input,
-                  { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground },
-                ]}
-                value={name}
-                onChangeText={(v) => {
-                  setName(v);
-                  markDirty();
-                }}
-                placeholder="Tu nombre"
-                placeholderTextColor={colors.mutedForeground}
-                autoCapitalize="words"
-              />
+              <View
+                style={[s.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <Feather name="user" size={16} color={colors.mutedForeground} />
+                <Text
+                  style={[s.inputText, { color: name ? colors.foreground : colors.mutedForeground }]}
+                  onPress={() => {}}
+                >
+                  {name || "Tu nombre"}
+                </Text>
+              </View>
             </View>
 
+            {/* Tópicos */}
             <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Topicos</Text>
-              {([0, 1, 2] as const).map((i) => (
-                <TextInput
-                  key={i}
-                  style={[
-                    s.input,
-                    { backgroundColor: colors.card, borderColor: colors.border, color: colors.foreground },
-                  ]}
-                  value={topics[i]}
-                  onChangeText={(v) => updateTopic(i, v)}
-                  placeholder={`Topico ${i + 1}`}
-                  placeholderTextColor={colors.mutedForeground}
-                  autoCapitalize="none"
-                />
-              ))}
-            </View>
+              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Tópicos Seleccionados</Text>
 
-            <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>
-                Horario de entrega
-              </Text>
+              {selectedTopics.length > 0 ? (
+                <View style={s.chipsWrap}>
+                  {selectedTopics.map((topic) => (
+                    <View
+                      key={topic}
+                      style={[s.chip, { backgroundColor: colors.primary + "22", borderColor: colors.primary }]}
+                    >
+                      <Text style={[s.chipText, { color: colors.primary }]}>{topic}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text style={[s.emptyTopics, { color: colors.mutedForeground }]}>
+                  0 de 3 tópicos seleccionados
+                </Text>
+              )}
 
               <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => setTopicPickerVisible(true)}
+                style={[s.pickerBtn, { backgroundColor: colors.primary }]}
+              >
+                <Feather name="sliders" size={16} color="#fff" />
+                <Text style={s.pickerBtnText}>Elegí Tópicos</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Horario */}
+            <View style={s.section}>
+              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Horario de entrega</Text>
+              <TouchableOpacity
                 activeOpacity={0.75}
-                onPress={openTimeModal}
-                style={[
-                  s.timeRowButton,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                  },
-                ]}
+                onPress={() => setTimeModalVisible(true)}
+                style={[s.timeRowButton, { backgroundColor: colors.card, borderColor: colors.border }]}
               >
                 <View style={s.timeRowLeft}>
                   <View style={[s.timeIconWrap, { backgroundColor: colors.secondary }]}>
                     <Feather name="clock" size={16} color={colors.mutedForeground} />
                   </View>
                   <View>
-                    <Text style={[s.timeRowTitle, { color: colors.foreground }]}>
-                      Hora de entrega
-                    </Text>
-                    <Text style={[s.timeRowSubtitle, { color: colors.mutedForeground }]}>
-                      Toca para cambiarla
-                    </Text>
+                    <Text style={[s.timeRowTitle, { color: colors.foreground }]}>Hora de entrega</Text>
+                    <Text style={[s.timeRowSubtitle, { color: colors.mutedForeground }]}>Toca para cambiarla</Text>
                   </View>
                 </View>
-
                 <View style={s.timeRowRight}>
-                  <Text style={[s.timeRowValue, { color: colors.foreground }]}>
-                    {deliveryTime}
-                  </Text>
+                  <Text style={[s.timeRowValue, { color: colors.foreground }]}>{deliveryTime}</Text>
                   <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
                 </View>
               </TouchableOpacity>
             </View>
 
+            {/* Activo */}
             <View style={s.section}>
-              <View
-                style={[
-                  s.switchRow,
-                  {
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
-                  },
-                ]}
-              >
+              <View style={[s.switchRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.switchTitle, { color: colors.foreground }]}>
-                    Resumen activo
-                  </Text>
+                  <Text style={[s.switchTitle, { color: colors.foreground }]}>Resumen activo</Text>
                   <Text style={[s.switchSubtitle, { color: colors.mutedForeground }]}>
                     Pausa o reactiva tus entregas diarias
                   </Text>
                 </View>
-
                 <Switch
                   value={isActive}
-                  onValueChange={(value) => {
-                    setIsActive(value);
-                    markDirty();
-                  }}
+                  onValueChange={(v) => { setIsActive(v); markDirty(); }}
                   trackColor={{ false: colors.secondary, true: colors.primary }}
                   thumbColor="#fff"
                 />
@@ -305,8 +250,31 @@ export default function ProfileScreen() {
       <TimePickerField
         visible={timeModalVisible}
         value={deliveryTime}
-        onClose={closeTimeModal}
-        onConfirm={confirmTimeSelection}
+        onClose={() => setTimeModalVisible(false)}
+        onConfirm={async (v) => {
+          const [h, m] = v.split(":");
+          setSelectedHour(h || "08");
+          setSelectedMinute(m || "00");
+          setTimeModalVisible(false);
+          markDirty();
+          try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+        }}
+      />
+
+      <TopicPicker
+        visible={topicPickerVisible}
+        value={topics.filter((t) => t.trim())}
+        onClose={() => setTopicPickerVisible(false)}
+        onConfirm={(newTopics) => {
+          const padded: [string, string, string] = [
+            newTopics[0] ?? "",
+            newTopics[1] ?? "",
+            newTopics[2] ?? "",
+          ];
+          setTopics(padded);
+          setTopicPickerVisible(false);
+          markDirty();
+        }}
       />
     </>
   );
@@ -323,26 +291,11 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       justifyContent: "space-between",
     },
-    title: {
-      fontSize: 28,
-      fontFamily: "Inter_700Bold",
-    },
-    saveBtn: {
-      borderRadius: 12,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-    },
-    saveTxt: {
-      color: "#fff",
-      fontFamily: "Inter_700Bold",
-      fontSize: 13,
-    },
-    scroll: {
-      padding: 20,
-    },
-    section: {
-      marginBottom: 22,
-    },
+    title: { fontSize: 28, fontFamily: "Inter_700Bold" },
+    saveBtn: { borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
+    saveTxt: { color: "#fff", fontFamily: "Inter_700Bold", fontSize: 13 },
+    scroll: { padding: 20 },
+    section: { marginBottom: 22 },
     sectionLabel: {
       fontSize: 12,
       fontFamily: "Inter_600SemiBold",
@@ -350,14 +303,53 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       textTransform: "uppercase",
       letterSpacing: 0.4,
     },
-    input: {
+    inputWrap: {
       borderWidth: 1,
       borderRadius: 16,
       paddingHorizontal: 14,
       paddingVertical: 13,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+    inputText: {
+      flex: 1,
       fontSize: 15,
       fontFamily: "Inter_500Medium",
-      marginBottom: 10,
+    },
+    chipsWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 12,
+    },
+    chip: {
+      borderWidth: 1,
+      borderRadius: 20,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    chipText: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
+    },
+    emptyTopics: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      marginBottom: 12,
+    },
+    pickerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      borderRadius: 14,
+      paddingVertical: 14,
+    },
+    pickerBtnText: {
+      color: "#fff",
+      fontSize: 15,
+      fontFamily: "Inter_700Bold",
     },
     timeRowButton: {
       borderWidth: 1,
@@ -367,40 +359,13 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: 12,
     },
-    timeRowLeft: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      flex: 1,
-    },
-    timeIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    timeRowTitle: {
-      fontSize: 15,
-      fontFamily: "Inter_600SemiBold",
-    },
-    timeRowSubtitle: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      marginTop: 2,
-    },
-    timeRowRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    timeRowValue: {
-      fontSize: 16,
-      fontFamily: "Inter_700Bold",
-      letterSpacing: 0.3,
-    },
+    timeRowLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+    timeIconWrap: { width: 36, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+    timeRowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    timeRowSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+    timeRowRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+    timeRowValue: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
     switchRow: {
       borderWidth: 1,
       borderRadius: 16,
@@ -410,15 +375,8 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       gap: 12,
     },
-    switchTitle: {
-      fontSize: 15,
-      fontFamily: "Inter_600SemiBold",
-    },
-    switchSubtitle: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      marginTop: 2,
-    },
+    switchTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    switchSubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
     logoutBtn: {
       borderWidth: 1,
       borderRadius: 16,
@@ -430,8 +388,5 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       gap: 8,
       marginTop: 10,
     },
-    logoutText: {
-      fontSize: 14,
-      fontFamily: "Inter_600SemiBold",
-    },
+    logoutText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   });

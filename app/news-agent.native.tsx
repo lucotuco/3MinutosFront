@@ -43,9 +43,8 @@ export default function NewsAgentScreen() {
 
   const scrollRef = useRef<ScrollView | null>(null);
   const transcriptRef = useRef("");
-  const transcriptFlushTimeoutRef = useRef<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const pendingAssistantTranscriptRef = useRef("");
+  const awaitingUserTranscriptRef = useRef(false);
 
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
@@ -67,49 +66,22 @@ export default function NewsAgentScreen() {
     }, 50);
   }, []);
 
-  const scheduleTranscriptFlush = useCallback(() => {
-    if (transcriptFlushTimeoutRef.current) {
-      return;
-    }
-
-    transcriptFlushTimeoutRef.current = setTimeout(() => {
-      transcriptFlushTimeoutRef.current = null;
-      flushTranscriptToScreen();
-    }, 200);
-  }, [flushTranscriptToScreen]);
-
   const appendTranscript = useCallback(
-    (text: string, flushNow = false) => {
+    (text: string) => {
       if (!text) {
         return;
       }
 
       transcriptRef.current += text;
-
-      if (flushNow) {
-        if (transcriptFlushTimeoutRef.current) {
-          clearTimeout(transcriptFlushTimeoutRef.current);
-          transcriptFlushTimeoutRef.current = null;
-        }
-
-        flushTranscriptToScreen();
-        return;
-      }
-
-      scheduleTranscriptFlush();
+      flushTranscriptToScreen();
     },
-    [flushTranscriptToScreen, scheduleTranscriptFlush]
+    [flushTranscriptToScreen]
   );
 
   const cleanup = useCallback(async () => {
     if (introTimeoutRef.current) {
       clearTimeout(introTimeoutRef.current);
       introTimeoutRef.current = null;
-    }
-
-    if (transcriptFlushTimeoutRef.current) {
-      clearTimeout(transcriptFlushTimeoutRef.current);
-      transcriptFlushTimeoutRef.current = null;
     }
 
     try {
@@ -157,6 +129,8 @@ export default function NewsAgentScreen() {
     introSentRef.current = false;
     introInProgressRef.current = false;
     responseInProgressRef.current = false;
+    awaitingUserTranscriptRef.current = false;
+    pendingAssistantTranscriptRef.current = "";
 
     setStatus("idle");
   }, []);
@@ -175,15 +149,12 @@ export default function NewsAgentScreen() {
     introSentRef.current = false;
     introInProgressRef.current = false;
     responseInProgressRef.current = false;
+    awaitingUserTranscriptRef.current = false;
+    pendingAssistantTranscriptRef.current = "";
 
     if (introTimeoutRef.current) {
       clearTimeout(introTimeoutRef.current);
       introTimeoutRef.current = null;
-    }
-
-    if (transcriptFlushTimeoutRef.current) {
-      clearTimeout(transcriptFlushTimeoutRef.current);
-      transcriptFlushTimeoutRef.current = null;
     }
 
     setStatus("connecting");
@@ -201,8 +172,8 @@ export default function NewsAgentScreen() {
 
       localStreamRef.current = stream;
 
-      // Arrancamos con el mic apagado para que el VAD no corte
-      // la primera respuesta del agente por ruido ambiente.
+      // Arrancamos con el mic apagado para que ningún ruido ambiente
+      // corte la primera respuesta del agente.
       setLocalMicEnabled(false);
 
       const pc = new RTCPeerConnection({
@@ -254,8 +225,6 @@ export default function NewsAgentScreen() {
         transcriptRef.current = "Dan está arrancando la conversación...\n\n";
         flushTranscriptToScreen();
 
-        // Primero metemos un mensaje artificial del usuario.
-        // Esto fuerza al modelo a responder como si el usuario hubiera pedido que arranque.
         sendClientEvent({
           type: "conversation.item.create",
           item: {
@@ -265,7 +234,7 @@ export default function NewsAgentScreen() {
               {
                 type: "input_text",
                 text:
-                  "Arrancá vos la conversación. Saludame brevemente como Dan Coach Virtual y preguntame qué noticia del digest quiero conversar.",
+                  "Arrancá vos la conversación. Saludame brevemente como Dan Agente Virtual y preguntame qué noticia del digest quiero conversar.",
               },
             ],
           },
@@ -298,6 +267,7 @@ export default function NewsAgentScreen() {
 
       pc.addEventListener("track", (event: any) => {
         const [remoteStream] = event.streams || [];
+
         if (remoteStream) {
           remoteStreamRef.current = remoteStream;
         }
@@ -334,25 +304,56 @@ export default function NewsAgentScreen() {
 
           if (event.type === "response.created") {
             responseInProgressRef.current = true;
-            appendTranscript("\nDan: ", true);
           }
 
-          if (event.type === "response.output_audio_transcript.delta") {
-            appendTranscript(event.delta || "");
+          // El usuario habló y el server cerró ese input.
+          // Marcamos que esperamos la transcripción final del usuario.
+          if (event.type === "input_audio_buffer.committed") {
+            awaitingUserTranscriptRef.current = true;
           }
 
-          if (event.type === "conversation.item.input_audio_transcription.completed") {
+          // Pintamos lo que dijo el usuario recién cuando llega completo.
+          if (
+            event.type ===
+            "conversation.item.input_audio_transcription.completed"
+          ) {
             const userText = event.transcript || "";
 
+            awaitingUserTranscriptRef.current = false;
+
             if (userText.trim()) {
-              appendTranscript(`\n\nVos: ${userText}\n`, true);
+              appendTranscript(`\n\nVos: ${userText.trim()}\n`);
+            }
+
+            // Si Dan terminó antes pero lo retuvimos para no mezclar,
+            // lo pintamos ahora, después del texto del usuario.
+            if (pendingAssistantTranscriptRef.current.trim()) {
+              const pending = pendingAssistantTranscriptRef.current.trim();
+              pendingAssistantTranscriptRef.current = "";
+
+              appendTranscript(`\nDan: ${pending}\n`);
+            }
+          }
+
+          // Importante:
+          // NO pintamos response.output_audio_transcript.delta.
+          // Los delta llegan en pedazos y se mezclan visualmente con tu frase.
+          // Pintamos la respuesta de Dan solo cuando llega completa.
+          if (event.type === "response.output_audio_transcript.done") {
+            const assistantText = event.transcript || "";
+
+            if (assistantText.trim()) {
+              if (awaitingUserTranscriptRef.current) {
+                pendingAssistantTranscriptRef.current = assistantText.trim();
+              } else {
+                appendTranscript(`\nDan: ${assistantText.trim()}\n`);
+              }
             }
           }
 
           if (event.type === "response.done") {
             responseInProgressRef.current = false;
             enableMicAfterIntro();
-            appendTranscript("\n", true);
           }
 
           if (
@@ -368,10 +369,6 @@ export default function NewsAgentScreen() {
             responseInProgressRef.current = false;
             enableMicAfterIntro();
           }
-
-          // No agregamos response.output_audio_transcript.done al texto,
-          // porque ya fuimos agregando todos los delta. Si agregás el done,
-          // duplicás toda la respuesta.
         } catch (error) {
           console.log("[news-agent] invalid realtime message:", error);
         }
@@ -406,8 +403,6 @@ export default function NewsAgentScreen() {
         })
       );
 
-      // Fallback: si el data channel abrió antes/después, intentamos programar la intro.
-      // scheduleAgentIntro tiene guard contra doble disparo.
       scheduleAgentIntro();
     } catch (error) {
       console.log("[news-agent] realtime error:", error);

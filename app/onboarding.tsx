@@ -15,7 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { TopicPicker } from "@/components/TopicPicker";
 import { TimePickerField } from "@/components/TimePickerField";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
@@ -26,6 +26,7 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { setSession, clearSession } = useUser();
 
+  const [topicPickerVisible, setTopicPickerVisible] = useState(false);
   const [name, setName] = useState("");
   const [topics, setTopics] = useState<[string, string, string]>(["", "", ""]);
   const [selectedHour, setSelectedHour] = useState("08");
@@ -189,33 +190,37 @@ export default function OnboardingScreen() {
               maxLength={60}
             />
 
-            <Text style={[s.label, { color: colors.text }]}>
-              Tus 3 tópicos de interés
-            </Text>
+           <Text style={[s.label, { color: colors.text }]}>
+  Tus 3 tópicos de interés
+</Text>
 
-            <Text style={[s.hint, { color: colors.mutedText }]}>
-              Ej: tecnología, economía, ciencia, cultura, deportes...
-            </Text>
+{topics.filter((t) => t.trim()).length > 0 ? (
+  <View style={s.chipsWrap}>
+    {topics.filter((t) => t.trim()).map((topic) => (
+      <View
+        key={topic}
+        style={[s.chip, { backgroundColor: colors.primary + "22", borderColor: colors.primary }]}
+      >
+        <Text style={[s.chipText, { color: colors.primary }]}>{topic}</Text>
+      </View>
+    ))}
+  </View>
+) : (
+  <Text style={[s.hint, { color: colors.mutedText }]}>
+    Elegí exactamente 3 temas que te interesan
+  </Text>
+)}
 
-            {([0, 1, 2] as const).map((i) => (
-              <TextInput
-                key={i}
-                value={topics[i]}
-                onChangeText={(v) => updateTopic(i, v)}
-                placeholder={`Tópico ${i + 1}`}
-                placeholderTextColor={colors.mutedText}
-                style={[
-                  s.input,
-                  {
-                    borderColor: colors.border,
-                    color: colors.text,
-                    backgroundColor: colors.card,
-                  },
-                ]}
-                autoCapitalize="none"
-                maxLength={40}
-              />
-            ))}
+<TouchableOpacity
+  activeOpacity={0.85}
+  onPress={() => setTopicPickerVisible(true)}
+  style={[s.pickerBtn, { backgroundColor: colors.primary }]}
+>
+  <Feather name="sliders" size={16} color="#fff" />
+  <Text style={s.pickerBtnText}>
+    {topics.filter((t) => t.trim()).length === 3 ? "Cambiar Tópicos" : "Elegí Tópicos"}
+  </Text>
+</TouchableOpacity>
 
             <Text style={[s.label, { color: colors.text }]}>
               Horario de entrega
@@ -293,7 +298,15 @@ export default function OnboardingScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-
+<TopicPicker
+  visible={topicPickerVisible}
+  value={topics.filter((t) => t.trim())}
+  onClose={() => setTopicPickerVisible(false)}
+  onConfirm={(newTopics) => {
+    setTopics([newTopics[0] ?? "", newTopics[1] ?? "", newTopics[2] ?? ""]);
+    setTopicPickerVisible(false);
+  }}
+/>
       <TimePickerField
         visible={timeModalVisible}
         value={deliveryTime}
@@ -306,6 +319,37 @@ export default function OnboardingScreen() {
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
+    chipsWrap: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  gap: 8,
+  marginBottom: 12,
+},
+chip: {
+  borderWidth: 1,
+  borderRadius: 20,
+  paddingHorizontal: 12,
+  paddingVertical: 6,
+},
+chipText: {
+  fontSize: 13,
+  fontFamily: "Inter_600SemiBold",
+},
+pickerBtn: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+  borderRadius: 14,
+  paddingVertical: 14,
+  marginBottom: 10,
+},
+pickerBtnText: {
+  color: "#fff",
+  fontSize: 15,
+  fontFamily: "Inter_700Bold",
+},
+
     root: {
       flex: 1,
     },

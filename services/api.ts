@@ -25,9 +25,11 @@ export type DigestItem = {
   neutralSummary?: string | null;
   originalTitle?: string | null;
   topic: string;
+  category?: string | null;
   region?: string | null;
   section?: string | null;
   url?: string | null;
+  imageUrl?: string | null;  
   tags?: string[];
   cached?: boolean;
   fallback?: boolean;
@@ -188,6 +190,7 @@ type RawDigest = {
       neutralSummary?: string | null;
       originalTitle?: string | null;
       topic?: unknown;
+      category?: string | null;
       region?: string | null;
       section?: string | null;
       url?: string | null;
@@ -228,6 +231,8 @@ function mapDigest(raw: RawDigest): DigestResponse {
             neutralSummary: item.neutralSummary ?? item.summary ?? "",
             originalTitle: item.originalTitle ?? undefined,
             topic: String(item.topic ?? ""),
+            category: item.category ?? undefined,
+            imageUrl: (item as any).imageUrl ?? undefined,
             region: item.region ?? undefined,
             section: item.section ?? undefined,
             url: item.url ?? undefined,
