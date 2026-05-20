@@ -526,7 +526,8 @@ export default function DigestScreen() {
             <>
               {data.digest.items.slice(0, 3).map((item, i) => (
                 <DigestCard
-                  key={`${item.articleId ?? item.url ?? item.title ?? i}`}
+                  // 👇 CORRECCIÓN AQUÍ: Garantiza una key única añadiendo el índice
+                  key={`digest-item-${item.articleId || item.url || "id"}-${i}`}
                   item={item}
                   index={i}
                 />
@@ -590,39 +591,39 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     brandSponsorRow: {
-  width: "100%",
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 8,
-},
-brandRow: {
-  flexDirection: "row",
-  alignItems: "baseline",
-  flexShrink: 0,
-  letterSpacing: -1,
-},
-logoBlue: {
-  fontSize: 31,
-  fontFamily: "Inter_700Bold",
-  marginRight: -1,
-},
-logoText: {
-  fontSize: 31,
-  fontFamily: "Inter_700Bold",
-  marginLeft: -1,
-},
-sponsorWrapInline: {
-  flexShrink: 1,
-  borderWidth: 1,
-  borderRadius: 12,
-  paddingHorizontal: 7,
-  paddingVertical: 4,
-},
-sponsorLogoInline: {
-  width: 158,
-  height: 43,
-},
+      width: "100%",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 8,
+    },
+    brandRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      flexShrink: 0,
+      letterSpacing: -1,
+    },
+    logoBlue: {
+      fontSize: 31,
+      fontFamily: "Inter_700Bold",
+      marginRight: -1,
+    },
+    logoText: {
+      fontSize: 31,
+      fontFamily: "Inter_700Bold",
+      marginLeft: -1,
+    },
+    sponsorWrapInline: {
+      flexShrink: 1,
+      borderWidth: 1,
+      borderRadius: 12,
+      paddingHorizontal: 7,
+      paddingVertical: 4,
+    },
+    sponsorLogoInline: {
+      width: 158,
+      height: 43,
+    },
 
     scroll: {
       paddingHorizontal: 18,
