@@ -28,6 +28,9 @@ export function DigestCard({ item, index }: DigestCardProps) {
     lead ||
     "No hay más información disponible para esta noticia.";
 
+  // Detectamos si es una noticia de fallback
+  const isFallback = item.fallback || item.curationFallback;
+
   const openUrl = async () => {
     if (!item.url) return;
 
@@ -59,12 +62,23 @@ export function DigestCard({ item, index }: DigestCardProps) {
 
         <View style={styles.metaBlock}>
           <Text style={[styles.topic, { color: rankColor }]} numberOfLines={1}>
+            {isFallback && <Feather name="zap" size={10} color={rankColor} />}{" "}
             {(item.topic || "General").toUpperCase()}
+            {isFallback ? " (SUGERIDO)" : ""}
           </Text>
+
+          {isFallback && (
+            <Text 
+              style={[styles.metaSmall, { color: colors.mutedForeground, fontStyle: 'italic', marginTop: 2 }]} 
+              numberOfLines={2}
+            >
+              No encontramos noticias exactas, pero esto te puede interesar.
+            </Text>
+          )}
 
           {item.region || item.section ? (
             <Text
-              style={[styles.metaSmall, { color: colors.mutedForeground }]}
+              style={[styles.metaSmall, { color: colors.mutedForeground, marginTop: isFallback ? 2 : 1 }]}
               numberOfLines={1}
             >
               {[item.region, item.section].filter(Boolean).join(" · ")}
@@ -170,7 +184,6 @@ const styles = StyleSheet.create({
   metaSmall: {
     fontSize: 10,
     fontFamily: "Inter_400Regular",
-    marginTop: 1,
   },
   title: {
     fontSize: 16,

@@ -454,6 +454,11 @@ export default function DigestScreen() {
         : insets.bottom + 92;
 
   const todayLabel = formatTodayLabel();
+  
+  // Verificamos si existe al menos una noticia que haya caído en fallback
+  const hasFallbackItems = data?.digest?.items?.some(
+    (item) => item.fallback || item.curationFallback
+  );
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
@@ -531,9 +536,28 @@ export default function DigestScreen() {
           data?.digest?.items &&
           data.digest.items.length > 0 && (
             <>
+              {/* BANNER DE AVISO DE SUGERENCIAS */}
+              {hasFallbackItems && (
+                <View
+                  style={[
+                    s.fallbackBanner,
+                    {
+                      backgroundColor: colors.card,
+                      borderColor: colors.border,
+                    },
+                  ]}
+                >
+                  <View style={[s.fallbackIconCircle, { backgroundColor: colors.primary + "22" }]}>
+                    <Feather name="info" size={18} color={colors.primary} />
+                  </View>
+                  <Text style={[s.fallbackText, { color: colors.text }]}>
+                    No encontramos noticias exactas para algunos de tus tópicos hoy, así que completamos tu resumen con sugerencias relevantes.
+                  </Text>
+                </View>
+              )}
+
               {data.digest.items.slice(0, 3).map((item, i) => (
                 <DigestCard
-                  // 👇 CORRECCIÓN AQUÍ: Garantiza una key única añadiendo el índice
                   key={`digest-item-${item.articleId || item.url || "id"}-${i}`}
                   item={item}
                   index={i}
@@ -683,6 +707,32 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       width: 8,
       height: 8,
       borderRadius: 4,
+    },
+
+    fallbackBanner: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+      borderWidth: 1,
+      borderRadius: 16,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginBottom: 10,
+    },
+
+    fallbackIconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+
+    fallbackText: {
+      flex: 1,
+      fontSize: 12.5,
+      lineHeight: 18,
+      fontFamily: "Inter_500Medium",
     },
 
     listenButton: {
