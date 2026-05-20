@@ -34,6 +34,8 @@ export type DigestItem = {
   cached?: boolean;
   fallback?: boolean;
   curationFallback?: boolean;
+  usedFallback?: boolean;
+  fallbackCategory?: string | null;
   neutralityScore?: number | null;
   politicalBiasRisk?: PoliticalBiasRisk;
   score?: number | null;
@@ -199,6 +201,8 @@ type RawDigest = {
       cached?: unknown;
       fallback?: unknown;
       curationFallback?: unknown;
+      usedFallback?: unknown;
+      fallbackCategory?: unknown;
       neutralityScore?: unknown;
       politicalBiasRisk?: unknown;
       score?: unknown;
@@ -243,6 +247,8 @@ function mapDigest(raw: RawDigest): DigestResponse {
             cached: Boolean(item.cached),
             fallback: Boolean(item.fallback),
             curationFallback: Boolean(item.curationFallback),
+            usedFallback: Boolean(item.usedFallback),
+            fallbackCategory: item.fallbackCategory ? String(item.fallbackCategory) : undefined,
             neutralityScore: toNullableNumber(item.neutralityScore),
             politicalBiasRisk: normalizePoliticalBiasRisk(
               item.politicalBiasRisk

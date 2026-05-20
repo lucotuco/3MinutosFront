@@ -28,8 +28,8 @@ export function DigestCard({ item, index }: DigestCardProps) {
     lead ||
     "No hay más información disponible para esta noticia.";
 
-  // Detectamos si es una noticia de fallback
-  const isFallback = item.fallback || item.curationFallback;
+  // Usamos usedFallback que envía el backend
+  const isFallback = item.usedFallback;
 
   const openUrl = async () => {
     if (!item.url) return;

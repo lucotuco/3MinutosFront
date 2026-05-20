@@ -455,9 +455,9 @@ export default function DigestScreen() {
 
   const todayLabel = formatTodayLabel();
   
-  // Verificamos si existe al menos una noticia que haya caído en fallback
+  // Usamos usedFallback que envía el backend
   const hasFallbackItems = data?.digest?.items?.some(
-    (item) => item.fallback || item.curationFallback
+    (item) => item.usedFallback
   );
 
   return (
