@@ -219,13 +219,34 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
           ]}
         >
           <Text style={[s.counter, { color: colors.mutedForeground }]}>
-            ({selected.length} de {MAX_TOPICS}) subtemas seleccionados
-            {selected.length > 0 && (
-              <Text style={{ color: colors.primary }}>
-                {" · "}{selected.join(", ")}
-              </Text>
-            )}
+            ({selected.length} de {MAX_TOPICS}) subtemas seleccionados:
           </Text>
+
+          {/* CHIPS DE SELECCIÓN ACTIVOS (ELIMINABLES) */}
+          {selected.length > 0 && (
+            <View style={s.selectedChipsContainer}>
+              {selected.map((topic) => (
+                <TouchableOpacity
+                  key={topic}
+                  style={[
+                    s.selectedChip,
+                    {
+                      backgroundColor: colors.primary + "1A", // 10% de opacidad
+                      borderColor: colors.primary + "40", // 25% de opacidad
+                    },
+                  ]}
+                  activeOpacity={0.7}
+                  onPress={() => toggleTopic(topic)}
+                >
+                  <Text style={[s.selectedChipText, { color: colors.primary }]}>
+                    {topic}
+                  </Text>
+                  <Feather name="x" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
           <TouchableOpacity
             activeOpacity={0.85}
             disabled={!canSave}
@@ -234,6 +255,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
               s.saveBtn,
               {
                 backgroundColor: canSave ? colors.primary : colors.secondary,
+                marginTop: 6,
               },
             ]}
           >
@@ -366,11 +388,30 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       borderTopWidth: 1,
       paddingHorizontal: 20,
       paddingTop: 14,
-      gap: 10,
+      gap: 6,
     },
     counter: {
       fontSize: 12,
       fontFamily: "Inter_400Regular",
+      marginBottom: 4,
+    },
+    selectedChipsContainer: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+      marginBottom: 8,
+    },
+    selectedChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      borderWidth: 1,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+    },
+    selectedChipText: {
+      fontSize: 13,
+      fontFamily: "Inter_600SemiBold",
     },
     saveBtn: {
       flexDirection: "row",

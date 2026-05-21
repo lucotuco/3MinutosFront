@@ -54,7 +54,7 @@ export function NewsAgentButton({ dayTitle = "Panadero" }: Props) {
           minimumFontScale={0.86}
           style={[s.dayTitle, { color: colors.text }]}
         >
-          HOY ES EL DÍA DEL {dayTitle.toUpperCase()}
+          {dayTitle.toUpperCase()}
         </Text>
       </View>
 

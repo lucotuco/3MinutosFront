@@ -33,6 +33,7 @@ import { useColors } from "@/hooks/useColors";
 import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
 import { api } from "@/services/api";
 import sponsorLogo from "../../assets/images/banco-comercio.png";
+import { getTodayEfemeride } from "@/constants/efemerides";
 
 type WeatherState = {
   label: string;
@@ -269,6 +270,7 @@ export default function DigestScreen() {
   const insets = useSafeAreaInsets();
   const { userId } = useUser();
   const { handleError } = useHandleUserNotFound();
+  const dynamicDayTitle = getTodayEfemeride();
 
   const [refreshing, setRefreshing] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -602,7 +604,7 @@ export default function DigestScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
-              <NewsAgentButton dayTitle="Panadero" />
+              <NewsAgentButton dayTitle={dynamicDayTitle} />
             </>
           )}
       </ScrollView>
