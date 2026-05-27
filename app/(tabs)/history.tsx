@@ -1,14 +1,15 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
-import React, { useEffect } from "react";
+import * as Haptics from "expo-haptics";
+import React, { useEffect, useState } from "react";
 import {
-    FlatList,
-    Linking,
-    Platform,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  FlatList,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -38,107 +39,166 @@ function formatDate(iso: string) {
 function ArticleRow({ item }: { item: ShownArticle }) {
   const colors = useColors();
   const s = rowStyles(colors);
+  const [expanded, setExpanded] = useState(false);
+
+  const title = item.title || "Sin título";
+  const summary = item.summary || "No hay más información disponible para esta noticia.";
+
+  const openUrl = async () => {
+    if (!item.articleUrl) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Linking.openURL(item.articleUrl);
+  };
+
+  const toggleExpanded = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setExpanded((prev) => !prev);
+  };
 
   return (
-    <View style={[s.row, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <TouchableOpacity
+      activeOpacity={0.88}
+      onPress={toggleExpanded}
+      style={[
+        s.card,
+        {
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+    >
       <View style={s.topRow}>
-        <View style={[s.badge, { backgroundColor: colors.secondary }]}>
-          <Text style={[s.badgeTxt, { color: colors.mutedForeground }]}>{item.topic}</Text>
+        <View style={s.metaBlock}>
+          <Text style={[s.topic, { color: colors.mutedForeground }]} numberOfLines={1}>
+            {(item.topic || "General").toUpperCase()}
+          </Text>
+          <Text
+            style={[s.metaSmall, { color: colors.mutedForeground, marginTop: 1 }]}
+            numberOfLines={1}
+          >
+            {formatDate(item.shownAt)}
+            {item.region || item.section ? ` · ${[item.section, item.region].filter(Boolean).join(" · ")}` : ""}
+          </Text>
         </View>
-        <Text style={[s.date, { color: colors.mutedForeground }]}>
-          {formatDate(item.shownAt)}
-        </Text>
+
+        <Feather
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={colors.mutedForeground}
+        />
       </View>
 
-      {item.title ? (
-        <Text style={[s.title, { color: colors.foreground }]} numberOfLines={2}>
-          {item.title}
-        </Text>
-      ) : null}
-
-      {item.summary ? (
-        <Text style={[s.summary, { color: colors.mutedForeground }]} numberOfLines={3}>
-          {item.summary}
-        </Text>
-      ) : null}
-
-      <Text style={[s.meta, { color: colors.mutedForeground }]}>
-        {item.section ? ` · ${item.section}` : ""}
-        {item.region ? ` · ${item.region}` : ""}
+      <Text
+        style={[s.title, { color: colors.foreground }]}
+        numberOfLines={expanded ? undefined : 2}
+      >
+        {title}
       </Text>
 
-      {item.articleUrl ? (
-        <TouchableOpacity
-          onPress={() => {
-            if (!item.articleUrl) return;
-            Linking.openURL(item.articleUrl);
-          }}
-          activeOpacity={0.7}
-          style={s.link}
-        >
-          <Feather name="external-link" size={13} color={colors.primary} />
-          <Text style={[s.linkTxt, { color: colors.primary }]} numberOfLines={1}>
-            Abrir noticia
+      {expanded ? (
+        <View style={s.expandedBlock}>
+          <Text style={[s.summary, { color: colors.mutedForeground }]}>
+            {summary}
           </Text>
-        </TouchableOpacity>
-      ) : null}
-    </View>
+
+          {item.articleUrl ? (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[
+                s.linkButton,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.secondary,
+                },
+              ]}
+              onPress={openUrl}
+            >
+              <Feather name="external-link" size={13} color={colors.primary} />
+              <Text style={[s.linkText, { color: colors.primary }]}>
+                Leer noticia
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : (
+        <Text
+          style={[s.lead, { color: colors.accentForeground }]}
+          numberOfLines={2}
+        >
+          {summary}
+        </Text>
+      )}
+    </TouchableOpacity>
   );
 }
 
 const rowStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
-    row: {
-      borderRadius: 12,
+    card: {
+      borderRadius: 16,
       borderWidth: 1,
-      padding: 14,
-      marginBottom: 12,
-      gap: 8,
+      paddingHorizontal: 11,
+      paddingVertical: 10,
+      marginBottom: 8,
+      gap: 5,
+      shadowColor: "#000",
+      shadowOpacity: 0.08,
+      shadowRadius: 7,
+      shadowOffset: {
+        width: 0,
+        height: 3,
+      },
+      elevation: 2,
     },
     topRow: {
       flexDirection: "row",
-      justifyContent: "space-between",
       alignItems: "center",
+      gap: 8,
     },
-    badge: {
-      paddingHorizontal: 9,
-      paddingVertical: 3,
-      borderRadius: 20,
+    metaBlock: {
+      flex: 1,
     },
-    badgeTxt: {
-      fontSize: 11,
-      fontFamily: "Inter_600SemiBold",
-      textTransform: "capitalize",
+    topic: {
+      fontSize: 10,
+      fontFamily: "Inter_700Bold",
+      letterSpacing: 0.35,
     },
-    date: {
-      fontSize: 11,
+    metaSmall: {
+      fontSize: 10,
       fontFamily: "Inter_400Regular",
     },
     title: {
-      fontSize: 15,
+      fontSize: 16,
+      lineHeight: 19,
       fontFamily: "Inter_700Bold",
-      lineHeight: 21,
+    },
+    lead: {
+      fontSize: 13,
+      lineHeight: 16,
+      fontFamily: "Inter_500Medium",
+    },
+    expandedBlock: {
+      marginTop: 2,
+      gap: 7,
     },
     summary: {
       fontSize: 13,
+      lineHeight: 17,
       fontFamily: "Inter_400Regular",
-      lineHeight: 19,
     },
-    meta: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      textTransform: "capitalize",
-    },
-    link: {
+    linkButton: {
+      alignSelf: "flex-start",
       flexDirection: "row",
       alignItems: "center",
       gap: 5,
-      marginTop: 2,
+      borderWidth: 1,
+      borderRadius: 10,
+      paddingHorizontal: 9,
+      paddingVertical: 6,
     },
-    linkTxt: {
+    linkText: {
       fontSize: 12,
-      fontFamily: "Inter_500Medium",
-      flex: 1,
+      fontFamily: "Inter_600SemiBold",
     },
   });
 

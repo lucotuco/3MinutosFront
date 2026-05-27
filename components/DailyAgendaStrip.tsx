@@ -19,6 +19,7 @@ import {
 type DailyAgendaStripProps = {
   todayLabel: string;
   weatherLabel: string;
+  weatherIcon?: keyof typeof Feather.glyphMap;
   weatherLoading: boolean;
 };
 
@@ -93,6 +94,7 @@ async function openCalendarEvent(event: UpcomingCalendarEvent) {
 export function DailyAgendaStrip({
   todayLabel,
   weatherLabel,
+  weatherIcon = "sun",
   weatherLoading,
 }: DailyAgendaStripProps) {
   const colors = useColors();
@@ -149,7 +151,7 @@ export function DailyAgendaStrip({
           </Text>
 
           <View style={s.weatherRow}>
-            <Feather name="cloud" size={11} color={colors.mutedText} />
+            <Feather name={weatherIcon} size={11} color={colors.mutedText} />
 
             {weatherLoading ? (
               <ActivityIndicator size="small" color={colors.mutedText} />
@@ -170,7 +172,7 @@ export function DailyAgendaStrip({
       <View style={s.eventsBlock}>
         <View style={s.eventsHeaderRow}>
           <Text style={[s.eventsHeader, { color: colors.primary }]}>
-            Proximos eventos
+            Tu calendario
           </Text>
 
           {eventsLoading && (
@@ -183,7 +185,7 @@ export function DailyAgendaStrip({
             numberOfLines={1}
             style={[s.noEventsText, { color: colors.mutedText }]}
           >
-            Sin eventos próximos
+            Tu agenda está libre
           </Text>
         ) : (
           <View style={s.eventsList}>

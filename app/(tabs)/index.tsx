@@ -3,23 +3,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    useCallback,
-    useEffect,
-    useRef,
-    useState,
-} from "react";
-import {
-    Alert,
-    Animated,
-    Image,
-    Platform,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Alert,
+  Animated,
+  Image,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Linking,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -37,18 +33,21 @@ import { getTodayEfemeride } from "@/constants/efemerides";
 
 type WeatherState = {
   label: string;
+  icon: keyof typeof Feather.glyphMap;
   loading: boolean;
 };
+ const handlePress = () => {
+   
+    Linking.openURL('https://www.bancodecomercio.com.ar/home');
+  };
 
 function formatTodayLabel() {
   const today = new Date();
-
   const formatted = today.toLocaleDateString("es-AR", {
     weekday: "long",
     day: "numeric",
     month: "long",
   });
-
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
@@ -62,11 +61,24 @@ function getCityFromAddress(address: Location.LocationGeocodedAddress) {
   );
 }
 
-async function fetchCurrentWeatherLabel(): Promise<string> {
+// Mapeamos los códigos WMO de Open-Meteo a íconos de Feather
+function getWeatherIcon(code: number): keyof typeof Feather.glyphMap {
+  if (code === 0) return "sun"; // Despejado
+  if (code === 1 || code === 2 || code === 3) return "cloud"; // Parcialmente nublado / Nublado
+  if (code === 45 || code === 48) return "cloud"; // Niebla
+  if (code >= 51 && code <= 57) return "cloud-drizzle"; // Llovizna
+  if (code >= 61 && code <= 67) return "cloud-rain"; // Lluvia
+  if (code >= 71 && code <= 77) return "cloud-snow"; // Nieve
+  if (code >= 80 && code <= 82) return "cloud-rain"; // Chubascos
+  if (code >= 95 && code <= 99) return "cloud-lightning"; // Tormenta
+  return "cloud"; // Fallback por defecto
+}
+
+async function fetchCurrentWeather(): Promise<{ label: string; icon: keyof typeof Feather.glyphMap }> {
   const permission = await Location.requestForegroundPermissionsAsync();
 
   if (permission.status !== "granted") {
-    return "";
+    return { label: "", icon: "cloud" };
   }
 
   const position = await Location.getCurrentPositionAsync({
@@ -75,11 +87,12 @@ async function fetchCurrentWeatherLabel(): Promise<string> {
 
   const { latitude, longitude } = position.coords;
 
+  // Agregamos weather_code a la URL
   const weatherUrl =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${latitude}` +
     `&longitude=${longitude}` +
-    `&current=temperature_2m` +
+    `&current=temperature_2m,weather_code` +
     `&timezone=auto`;
 
   const response = await fetch(weatherUrl);
@@ -91,13 +104,15 @@ async function fetchCurrentWeatherLabel(): Promise<string> {
   const data = (await response.json()) as {
     current?: {
       temperature_2m?: number;
+      weather_code?: number;
     };
   };
 
   const temperature = data.current?.temperature_2m;
+  const code = data.current?.weather_code ?? -1;
 
   if (typeof temperature !== "number") {
-    return "";
+    return { label: "", icon: "cloud" };
   }
 
   let city = "tu zona";
@@ -115,7 +130,10 @@ async function fetchCurrentWeatherLabel(): Promise<string> {
     city = "tu zona";
   }
 
-  return `${Math.round(temperature)}° en ${city}`;
+  return {
+    label: `${Math.round(temperature)}° en ${city}`,
+    icon: getWeatherIcon(code),
+  };
 }
 
 function DigestLoadingState() {
@@ -278,6 +296,7 @@ export default function DigestScreen() {
 
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
+    icon: "cloud",
     loading: true,
   });
 
@@ -319,11 +338,12 @@ export default function DigestScreen() {
 
     const loadWeather = async () => {
       try {
-        const label = await fetchCurrentWeatherLabel();
+        const { label, icon } = await fetchCurrentWeather();
 
         if (!cancelled) {
           setWeather({
             label,
+            icon,
             loading: false,
           });
         }
@@ -331,6 +351,7 @@ export default function DigestScreen() {
         if (!cancelled) {
           setWeather({
             label: "",
+            icon: "cloud",
             loading: false,
           });
         }
@@ -480,11 +501,14 @@ export default function DigestScreen() {
               },
             ]}
           >
+          <TouchableOpacity onPress={handlePress}>
             <Image
               source={sponsorLogo}
               style={s.sponsorLogoInline}
               resizeMode="contain"
+              
             />
+            </TouchableOpacity>
           </View>
         </View>
       </View>
@@ -504,9 +528,10 @@ export default function DigestScreen() {
           />
         }
       >
-        <DailyAgendaStrip
+       <DailyAgendaStrip
           todayLabel={todayLabel}
           weatherLabel={weather.label}
+          weatherIcon={weather.icon}
           weatherLoading={weather.loading}
         />
 

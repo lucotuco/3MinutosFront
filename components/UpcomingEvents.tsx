@@ -135,7 +135,7 @@ export function UpcomingEvents() {
             numberOfLines={1}
             style={[s.mainText, { color: colors.mutedText }]}
           >
-            Buscando tu próximo evento...
+            Revisando tu calendario...
           </Text>
         </View>
       </View>
