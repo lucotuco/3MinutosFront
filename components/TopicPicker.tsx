@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -17,6 +17,17 @@ import { useColors } from "@/hooks/useColors";
 
 const MAX_TOPICS = 3;
 
+// Mapeo de ejemplos específicos para el marcador de posición (placeholder) según la categoría
+const CATEGORY_PLACEHOLDERS: Record<string, string> = {
+  'Política':       'Ej. Ley de Bases',
+  'Economía':       'Ej. Plazo Fijo',
+  'Mundo':          'Ej. Unión Europea',
+  'Deportes':       'Ej. Boca Juniors',
+  'Sociedad':       'Ej. Paro de colectivos',
+  'Tecnología':     'Ej. ChatGPT',
+  'Cultura y Vida': 'Ej. Lollapalooza',
+};
+
 type Props = {
   visible: boolean;
   value: string[];
@@ -30,11 +41,17 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
   const [selected, setSelected] = useState<string[]>(value);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
+  
+  // Nuevos estados y referencias para controlar el comportamiento dinámico
+  const [placeholderText, setPlaceholderText] = useState("Ej. Boca Juniors");
+  const scrollViewRef = useRef<ScrollView>(null);
+  const freeTextInputRef = useRef<TextInput>(null);
 
   useEffect(() => {
     if (visible) {
       setSelected(value);
       setFreeText("");
+      setPlaceholderText("Ej. Boca Juniors");
     }
   }, [visible]);
 
@@ -50,6 +67,25 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
   const toggleCategory = useCallback(async (cat: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setExpandedCategory((prev) => (prev === cat ? null : cat));
+  }, []);
+
+  // Función para manejar la selección del chip "Otro..."
+  const handleOtroPress = useCallback(async (cat: string) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    // Cambiamos el ejemplo del placeholder dinámicamente según la categoría
+    const placeholder = CATEGORY_PLACEHOLDERS[cat] || "Ej. Boca Juniors";
+    setPlaceholderText(placeholder);
+    
+    // Desplazamos la lista hasta el final de forma suave
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 50);
+
+    // Activamos el teclado y hacemos foco automático en la caja de texto
+    setTimeout(() => {
+      freeTextInputRef.current?.focus();
+    }, 200);
   }, []);
 
   const addFreeText = useCallback(async () => {
@@ -83,12 +119,13 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
           <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Feather name="x" size={22} color={colors.mutedForeground} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: colors.foreground }]}>Categorias Disponibles</Text>
+          <Text style={[s.headerTitle, { color: colors.foreground }]}>Tópicos Disponibles</Text>
           <View style={{ width: 36 }} />
         </View>
 
         {/* Category list */}
         <ScrollView
+          ref={scrollViewRef}
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
@@ -158,6 +195,39 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
                             </TouchableOpacity>
                           );
                         })}
+
+                        {/* NUEVO: Chip dinámico de "Otro..." integrado al final de cada categoría */}
+                        {(() => {
+                          const isDisabled = selected.length >= MAX_TOPICS;
+                          return (
+                            <TouchableOpacity
+                              activeOpacity={0.8}
+                              disabled={isDisabled}
+                              onPress={() => handleOtroPress(cat)}
+                              style={[
+                                s.chip,
+                                {
+                                  borderColor: colors.border,
+                                  backgroundColor: colors.card,
+                                  opacity: isDisabled ? 0.35 : 1,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  s.chipText,
+                                  {
+                                    color: colors.mutedForeground,
+                                    fontFamily: "Inter_500Medium",
+                                    fontStyle: "italic",
+                                  },
+                                ]}
+                              >
+                                Otro...
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })()}
                       </View>
                     </View>
                   )}
@@ -171,6 +241,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
             <Text style={[s.freeLabel, { color: colors.mutedForeground }]}>Tema Libre</Text>
             <View style={s.freeRow}>
               <TextInput
+                ref={freeTextInputRef}
                 style={[
                   s.freeInput,
                   {
@@ -181,7 +252,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
                 ]}
                 value={freeText}
                 onChangeText={setFreeText}
-                placeholder="Ej. Boca Juniors"
+                placeholder={placeholderText}
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="words"
                 maxLength={40}
@@ -231,8 +302,8 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
                   style={[
                     s.selectedChip,
                     {
-                      backgroundColor: colors.primary + "1A", // 10% de opacidad
-                      borderColor: colors.primary + "40", // 25% de opacidad
+                      backgroundColor: colors.primary + "1A",
+                      borderColor: colors.primary + "40",
                     },
                   ]}
                   activeOpacity={0.7}
