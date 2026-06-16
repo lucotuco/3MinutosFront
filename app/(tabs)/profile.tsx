@@ -170,9 +170,9 @@ export default function ProfileScreen() {
               </View>
             </View>
 
-            {/* Tópicos */}
+            {/* Categorias */}
             <View style={s.section}>
-              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Tópicos Seleccionados</Text>
+              <Text style={[s.sectionLabel, { color: colors.mutedForeground }]}>Categorias Seleccionadas</Text>
 
               {selectedTopics.length > 0 ? (
                 <View style={s.chipsWrap}>
@@ -197,7 +197,7 @@ export default function ProfileScreen() {
                 style={[s.pickerBtn, { backgroundColor: colors.primary }]}
               >
                 <Feather name="sliders" size={16} color="#fff" />
-                <Text style={s.pickerBtnText}>Elegí Tópicos</Text>
+                <Text style={s.pickerBtnText}>Elegír Categorias</Text>
               </TouchableOpacity>
             </View>
 

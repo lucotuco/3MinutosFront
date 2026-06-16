@@ -85,7 +85,7 @@ export function NewsAgentButton({ dayTitle = "Panadero" }: Props) {
           ]}
         >
           <Feather name="mic" size={10} color="#FFFFFF" />
-          <Text style={s.askText}>Tocá para hablar</Text>
+          <Text style={s.askText}>Asistente Inteligente</Text>
         </View>
       </View>
     </TouchableOpacity>

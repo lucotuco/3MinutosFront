@@ -121,7 +121,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
           <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Feather name="x" size={22} color={colors.mutedForeground} />
           </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: colors.foreground }]}>Tópicos Disponibles</Text>
+          <Text style={[s.headerTitle, { color: colors.foreground }]}>Categorias Disponibles</Text>
           <View style={{ width: 36 }} />
         </View>
 <KeyboardAvoidingView 
@@ -223,7 +223,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
                                 style={[
                                   s.chipText,
                                   {
-                                    color: colors.mutedForeground,
+                                    color: colors.foreground,
                                     fontFamily: "Inter_500Medium",
                                     fontStyle: "italic",
                                   },
@@ -296,7 +296,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
           ]}
         >
           <Text style={[s.counter, { color: colors.mutedForeground }]}>
-            ({selected.length} de {MAX_TOPICS}) subtemas seleccionados:
+            ({selected.length} de {MAX_TOPICS}) Categorias seleccionadas:
           </Text>
 
           {/* CHIPS DE SELECCIÓN ACTIVOS (ELIMINABLES) */}
