@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
 import React, { useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { DigestItem } from "@/services/api";
@@ -12,7 +12,7 @@ interface DigestCardProps {
   index: number;
 }
 
-const rankColors = ["#EF4444", "#3B82F6","#22C55E"];
+const rankColors = ["#EF4444", "#3B82F6", "#22C55E"];
 
 export function DigestCard({ item, index }: DigestCardProps) {
   const colors = useColors();
@@ -28,7 +28,6 @@ export function DigestCard({ item, index }: DigestCardProps) {
     lead ||
     "No hay más información disponible para esta noticia.";
 
-  // Usamos usedFallback que envía el backend
   const isFallback = item.usedFallback;
 
   const openUrl = async () => {
@@ -55,98 +54,104 @@ export function DigestCard({ item, index }: DigestCardProps) {
         },
       ]}
     >
-      <View style={styles.topRow}>
-        <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
-          <Text style={styles.rankBadgeText}>{index + 1}</Text>
-        </View>
-
-        <View style={styles.metaBlock}>
-          <Text style={[styles.topic, { color: rankColor }]} numberOfLines={1}>
-            {isFallback && <Feather name="zap" size={10} color={rankColor} />}{" "}
-            {(item.topic || "General").toUpperCase()}
-            {isFallback ? " (SUGERIDO)" : ""}
-          </Text>
-
-          {isFallback && (
-            <Text 
-              style={[styles.metaSmall, { color: colors.mutedForeground, fontStyle: 'italic', marginTop: 2 }]} 
-              numberOfLines={2}
-            >
-              No encontramos noticias exactas, pero esto te puede interesar.
-            </Text>
-          )}
-
-          {item.region || item.section ? (
-            <Text
-              style={[styles.metaSmall, { color: colors.mutedForeground, marginTop: isFallback ? 2 : 1 }]}
-              numberOfLines={1}
-            >
-              {[item.region, item.section].filter(Boolean).join(" · ")}
-            </Text>
-          ) : null}
-        </View>
-
-        <Feather
-          name={expanded ? "chevron-up" : "chevron-down"}
-          size={18}
-          color={colors.mutedForeground}
+      {item.imageUrl ? (
+        <Image
+          source={{ uri: item.imageUrl }}
+          style={styles.image}
+          resizeMode="cover"
         />
-      </View>
-
-      <Text
-        style={[styles.title, { color: colors.foreground }]}
-        numberOfLines={expanded ? undefined : 2}
-      >
-        {title}
-      </Text>
-
-      {lead ? (
-        <Text
-          style={[styles.lead, { color: colors.accentForeground }]}
-          numberOfLines={expanded ? undefined : 2}
-        >
-          {lead}
-        </Text>
       ) : null}
 
-      {expanded ? (
-        <View style={styles.expandedBlock}>
-          <Text style={[styles.summary, { color: colors.mutedForeground }]}>
-            {summary}
-          </Text>
+      <View style={styles.textContent}>
+        <View style={styles.topRow}>
+          <View style={[styles.rankBadge, { backgroundColor: rankColor }]}>
+            <Text style={styles.rankBadgeText}>{index + 1}</Text>
+          </View>
 
-          {item.url ? (
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[
-                styles.linkButton,
-                {
-                  borderColor: colors.border,
-                  backgroundColor: colors.secondary,
-                },
-              ]}
-              onPress={openUrl}
-            >
-              <Feather name="external-link" size={13} color={colors.primary} />
-              <Text style={[styles.linkText, { color: colors.primary }]}>
-                Leer fuente
+          <View style={styles.metaBlock}>
+            <Text style={[styles.topic, { color: rankColor }]} numberOfLines={1}>
+              {isFallback && <Feather name="zap" size={10} color={rankColor} />}{" "}
+              {(item.topic || "General").toUpperCase()}
+              {isFallback ? " (SUGERIDO)" : ""}
+            </Text>
+
+            {isFallback && (
+              <Text
+                style={[
+                  styles.metaSmall,
+                  { color: colors.mutedForeground, fontStyle: "italic", marginTop: 2 },
+                ]}
+                numberOfLines={2}
+              >
+                No encontramos noticias exactas, pero esto te puede interesar.
               </Text>
-            </TouchableOpacity>
-          ) : null}
+            )}
+          </View>
+
+          <Feather
+            name={expanded ? "chevron-up" : "chevron-down"}
+            size={18}
+            color={colors.mutedForeground}
+          />
         </View>
-      ) : null}
+
+        <Text
+          style={[styles.title, { color: colors.foreground }]}
+          numberOfLines={expanded ? undefined : 3}
+        >
+          {title}
+        </Text>
+
+        {lead ? (
+          <Text
+            style={[styles.lead, { color: colors.accentForeground }]}
+            numberOfLines={expanded ? undefined : 2}
+          >
+            {lead}
+          </Text>
+        ) : null}
+
+        {expanded ? (
+          <View style={styles.expandedBlock}>
+            <Text style={[styles.summary, { color: colors.mutedForeground }]}>
+              {summary}
+            </Text>
+
+            {item.url ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[
+                  styles.linkButton,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: colors.secondary,
+                  },
+                ]}
+                onPress={openUrl}
+              >
+                <Feather name="external-link" size={13} color={colors.primary} />
+                <Text style={[styles.linkText, { color: colors.primary }]}>
+                  Leer fuente
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 16,
     borderWidth: 1,
-    paddingHorizontal: 11,
-    paddingVertical: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
     marginBottom: 8,
-    gap: 5,
+    gap: 12,
     shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowRadius: 7,
@@ -155,6 +160,15 @@ const styles = StyleSheet.create({
       height: 3,
     },
     elevation: 2,
+  },
+  image: {
+    width: 95,
+    height: 95,
+    borderRadius: 12,
+  },
+  textContent: {
+    flex: 1,
+    gap: 5,
   },
   topRow: {
     flexDirection: "row",
