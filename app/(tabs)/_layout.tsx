@@ -4,6 +4,7 @@ import React from "react";
 import { Platform, View, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+
 import { useColors } from "@/hooks/useColors";
 
 export default function TabLayout() {
@@ -21,46 +22,47 @@ export default function TabLayout() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <Tabs
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: colors.primary,
-          tabBarInactiveTintColor: colors.mutedForeground,
-          tabBarHideOnKeyboard: true,
-          tabBarStyle: {
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: Platform.OS === "ios" ? -8 : -6,
-            height: Platform.OS === "ios" ? 78 : 70,
-            paddingBottom: Platform.OS === "ios" ? 18 : 10,
-            backgroundColor: colors.background,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            paddingTop: 7,
-            paddingHorizontal: 10,
-          },
-          tabBarItemStyle: {
-            paddingTop: isAndroid ? 4 : 0,
-          },
-          tabBarLabelStyle: {
-            fontFamily: "Inter_500Medium",
-            fontSize: 11,
-            marginBottom: isAndroid ? 4 : 4,
-          },
-          tabBarBackground: () => (
-            <View
-              style={[
-                StyleSheet.absoluteFillObject,
-                {
-                  backgroundColor: colors.background,
-                  borderTopWidth: 1,
-                  borderTopColor: colors.border,
-                },
-              ]}
-            />
-          ),
-        }}
-      >
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: {
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: Platform.OS === "ios" ? -8 : -6,
+          // 2. Le sumamos el insets.bottom a TU altura y padding de Android
+          height: Platform.OS === "ios" ? 78 : 70 + insets.bottom,
+          paddingBottom: Platform.OS === "ios" ? 18 : 10 + insets.bottom,
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          paddingTop: 7,
+          paddingHorizontal: 10,
+        },
+        tabBarItemStyle: {
+          paddingTop: isAndroid ? 4 : 0,
+        },
+        tabBarLabelStyle: {
+          fontFamily: "Inter_500Medium",
+          fontSize: 11,
+          marginBottom: isAndroid ? 4 : 4,
+        },
+        tabBarBackground: () => (
+          <View
+            style={[
+              StyleSheet.absoluteFillObject,
+              {
+                backgroundColor: colors.background,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+              },
+            ]}
+          />
+        ),
+      }}
+    >
         <Tabs.Screen
           name="index"
           options={{

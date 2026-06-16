@@ -9,6 +9,8 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  KeyboardAvoidingView,
+  Platform
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -122,7 +124,11 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
           <Text style={[s.headerTitle, { color: colors.foreground }]}>Tópicos Disponibles</Text>
           <View style={{ width: 36 }} />
         </View>
-
+<KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} /* Ajustá este 90 si el teclado te queda muy arriba o muy abajo en iOS */
+    >
         {/* Category list */}
         <ScrollView
           ref={scrollViewRef}
@@ -277,7 +283,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
             </View>
           </View>
         </ScrollView>
-
+</KeyboardAvoidingView>
         {/* Footer fijo */}
         <View
           style={[
