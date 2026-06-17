@@ -10,7 +10,8 @@ import {
   TouchableOpacity,
   View,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  Pressable
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -19,15 +20,15 @@ import { useColors } from "@/hooks/useColors";
 
 const MAX_TOPICS = 3;
 
-// Mapeo de ejemplos específicos para el marcador de posición (placeholder) según la categoría
+// Ajustamos los placeholders exactos para que coincidan con las claves de constants/categories.ts
 const CATEGORY_PLACEHOLDERS: Record<string, string> = {
   'Política':       'Ej. Ley de Bases',
   'Economía':       'Ej. Plazo Fijo',
-  'Mundo':          'Ej. Unión Europea',
+  'Internacional':  'Ej. Unión Europea',
   'Deportes':       'Ej. Boca Juniors',
   'Sociedad':       'Ej. Paro de colectivos',
   'Tecnología':     'Ej. ChatGPT',
-  'Cultura y Vida': 'Ej. Lollapalooza',
+  'Entretenimiento/Cultura': 'Ej. Lollapalooza',
 };
 
 type Props = {
@@ -40,12 +41,12 @@ type Props = {
 export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  
   const [selected, setSelected] = useState<string[]>(value);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
-  
-  // Nuevos estados y referencias para controlar el comportamiento dinámico
   const [placeholderText, setPlaceholderText] = useState("Ej. Boca Juniors");
+  
   const scrollViewRef = useRef<ScrollView>(null);
   const freeTextInputRef = useRef<TextInput>(null);
 
@@ -55,7 +56,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
       setFreeText("");
       setPlaceholderText("Ej. Boca Juniors");
     }
-  }, [visible]);
+  }, [visible, value]);
 
   const toggleTopic = useCallback(async (topic: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -71,23 +72,19 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
     setExpandedCategory((prev) => (prev === cat ? null : cat));
   }, []);
 
-  // Función para manejar la selección del chip "Otro..."
   const handleOtroPress = useCallback(async (cat: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Cambiamos el ejemplo del placeholder dinámicamente según la categoría
     const placeholder = CATEGORY_PLACEHOLDERS[cat] || "Ej. Boca Juniors";
     setPlaceholderText(placeholder);
     
-    // Desplazamos la lista hasta el final de forma suave
+    // Primero hacemos foco para que empiece a subir el teclado
+    freeTextInputRef.current?.focus();
+
+    // Le damos un changüí al teclado para que ocupe espacio y recién ahí scrolleamos
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 50);
-
-    // Activamos el teclado y hacemos foco automático en la caja de texto
-    setTimeout(() => {
-      freeTextInputRef.current?.focus();
-    }, 200);
+    }, 300);
   }, []);
 
   const addFreeText = useCallback(async () => {
@@ -111,261 +108,287 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="pageSheet"
+      transparent={true} 
       onRequestClose={onClose}
     >
-      <View style={[s.container, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+      >
+        <View style={s.modalOverlay}>
+          {/* Fondo oscuro clickeable para cerrar el modal */}
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
+            <View style={s.modalBackdrop} />
+          </Pressable>
 
-        {/* Header */}
-        <View style={[s.header, { paddingTop: insets.top + 16, borderBottomColor: colors.border }]}>
-          <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Feather name="x" size={22} color={colors.mutedForeground} />
-          </TouchableOpacity>
-          <Text style={[s.headerTitle, { color: colors.foreground }]}>Categorias Disponibles</Text>
-          <View style={{ width: 36 }} />
-        </View>
-<KeyboardAvoidingView 
-      style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0} /* Ajustá este 90 si el teclado te queda muy arriba o muy abajo en iOS */
-    >
-        {/* Category list */}
-        <ScrollView
-          ref={scrollViewRef}
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {(Object.entries(CATEGORIES) as [CategoryName, readonly string[]][]).map(
-            ([cat, topics], idx) => {
-              const isExpanded = expandedCategory === cat;
-              const icon = CATEGORY_ICONS[cat] as any;
-
-              return (
-                <View key={cat}>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    onPress={() => toggleCategory(cat)}
-                    style={[s.catRow, { borderBottomColor: colors.border }]}
-                  >
-                    <View style={s.catLeft}>
-                      <View style={[s.catIconWrap, { backgroundColor: colors.accent }]}>
-                        <Feather name={icon} size={16} color={colors.primary} />
-                      </View>
-                      <Text style={[s.catName, { color: colors.foreground }]}>
-                        {idx + 1}. {cat.toUpperCase()}
-                      </Text>
-                    </View>
-                    <Feather
-                      name={isExpanded ? "chevron-up" : "chevron-down"}
-                      size={18}
-                      color={colors.mutedForeground}
-                    />
-                  </TouchableOpacity>
-
-                  {isExpanded && (
-                    <View style={[s.topicsWrap, { backgroundColor: colors.muted }]}>
-                      <View style={s.chipsRow}>
-                        {topics.map((topic) => {
-                          const isSelected = selected.includes(topic);
-                          const isDisabled = !isSelected && selected.length >= MAX_TOPICS;
-                          return (
-                            <TouchableOpacity
-                              key={topic}
-                              activeOpacity={0.8}
-                              disabled={isDisabled}
-                              onPress={() => toggleTopic(topic)}
-                              style={[
-                                s.chip,
-                                {
-                                  borderColor: isSelected ? colors.primary : colors.border,
-                                  backgroundColor: isSelected
-                                    ? colors.primary + "28"
-                                    : colors.card,
-                                  opacity: isDisabled ? 0.35 : 1,
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  s.chipText,
-                                  {
-                                    color: isSelected ? colors.primary : colors.foreground,
-                                    fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
-                                  },
-                                ]}
-                              >
-                                {topic}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-
-                        {/* NUEVO: Chip dinámico de "Otro..." integrado al final de cada categoría */}
-                        {(() => {
-                          const isDisabled = selected.length >= MAX_TOPICS;
-                          return (
-                            <TouchableOpacity
-                              activeOpacity={0.8}
-                              disabled={isDisabled}
-                              onPress={() => handleOtroPress(cat)}
-                              style={[
-                                s.chip,
-                                {
-                                  borderColor: colors.border,
-                                  backgroundColor: colors.card,
-                                  opacity: isDisabled ? 0.35 : 1,
-                                },
-                              ]}
-                            >
-                              <Text
-                                style={[
-                                  s.chipText,
-                                  {
-                                    color: colors.foreground,
-                                    fontFamily: "Inter_500Medium",
-                                    fontStyle: "italic",
-                                  },
-                                ]}
-                              >
-                                Otro...
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })()}
-                      </View>
-                    </View>
-                  )}
-                </View>
-              );
-            }
-          )}
-
-          {/* Tema libre */}
-          <View style={[s.freeWrap, { borderTopColor: colors.border }]}>
-            <Text style={[s.freeLabel, { color: colors.mutedForeground }]}>Tema Libre</Text>
-            <View style={s.freeRow}>
-              <TextInput
-                ref={freeTextInputRef}
-                style={[
-                  s.freeInput,
-                  {
-                    borderColor: colors.border,
-                    color: colors.foreground,
-                    backgroundColor: colors.card,
-                  },
-                ]}
-                value={freeText}
-                onChangeText={setFreeText}
-                placeholder={placeholderText}
-                placeholderTextColor={colors.mutedForeground}
-                autoCapitalize="words"
-                maxLength={40}
-                returnKeyType="done"
-                onSubmitEditing={addFreeText}
-              />
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={addFreeText}
-                disabled={!freeText.trim() || selected.length >= MAX_TOPICS}
-                style={[
-                  s.addBtn,
-                  {
-                    backgroundColor: colors.primary,
-                    opacity: !freeText.trim() || selected.length >= MAX_TOPICS ? 0.45 : 1,
-                  },
-                ]}
-              >
-                <Feather name="plus" size={15} color="#fff" />
-                <Text style={s.addBtnText}>Añadir</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </ScrollView>
-</KeyboardAvoidingView>
-        {/* Footer fijo */}
-        <View
-          style={[
-            s.footer,
-            {
-              borderTopColor: colors.border,
-              paddingBottom: insets.bottom + 12,
-              backgroundColor: colors.background,
-            },
-          ]}
-        >
-          <Text style={[s.counter, { color: colors.mutedForeground }]}>
-            ({selected.length} de {MAX_TOPICS}) Categorias seleccionadas:
-          </Text>
-
-          {/* CHIPS DE SELECCIÓN ACTIVOS (ELIMINABLES) */}
-          {selected.length > 0 && (
-            <View style={s.selectedChipsContainer}>
-              {selected.map((topic) => (
-                <TouchableOpacity
-                  key={topic}
-                  style={[
-                    s.selectedChip,
-                    {
-                      backgroundColor: colors.primary + "1A",
-                      borderColor: colors.primary + "40",
-                    },
-                  ]}
-                  activeOpacity={0.7}
-                  onPress={() => toggleTopic(topic)}
-                >
-                  <Text style={[s.selectedChipText, { color: colors.primary }]}>
-                    {topic}
-                  </Text>
-                  <Feather name="x" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <TouchableOpacity
-            activeOpacity={0.85}
-            disabled={!canSave}
-            onPress={handleConfirm}
+          {/* Nuestra "hoja" personalizada */}
+          <View
             style={[
-              s.saveBtn,
+              s.modalContent,
               {
-                backgroundColor: canSave ? colors.primary : colors.secondary,
-                marginTop: 6,
+                backgroundColor: colors.background,
+                marginTop: Math.max(insets.top + 20, 40),
               },
             ]}
           >
-            <Feather
-              name="check"
-              size={16}
-              color={canSave ? "#fff" : colors.mutedForeground}
-            />
-            <Text
+            {/* Header */}
+            <View style={[s.header, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Feather name="x" size={22} color={colors.mutedForeground} />
+              </TouchableOpacity>
+              <Text style={[s.headerTitle, { color: colors.foreground }]}>Categorias Disponibles</Text>
+              <View style={{ width: 36 }} />
+            </View>
+
+            {/* Category list */}
+            <ScrollView
+              ref={scrollViewRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: 24 }}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
+              {(Object.entries(CATEGORIES) as [CategoryName, readonly string[]][]).map(
+                ([cat, topics], idx) => {
+                  const isExpanded = expandedCategory === cat;
+                  const icon = CATEGORY_ICONS[cat] as any;
+
+                  return (
+                    <View key={cat}>
+                      <TouchableOpacity
+                        activeOpacity={0.8}
+                        onPress={() => toggleCategory(cat)}
+                        style={[s.catRow, { borderBottomColor: colors.border }]}
+                      >
+                        <View style={s.catLeft}>
+                          <View style={[s.catIconWrap, { backgroundColor: colors.accent }]}>
+                            <Feather name={icon} size={16} color={colors.primary} />
+                          </View>
+                          <Text style={[s.catName, { color: colors.foreground }]}>
+                            {idx + 1}. {cat.toUpperCase()}
+                          </Text>
+                        </View>
+                        <Feather
+                          name={isExpanded ? "chevron-up" : "chevron-down"}
+                          size={18}
+                          color={colors.mutedForeground}
+                        />
+                      </TouchableOpacity>
+
+                      {isExpanded && (
+                        <View style={[s.topicsWrap, { backgroundColor: colors.muted }]}>
+                          <View style={s.chipsRow}>
+                            {topics.map((topic) => {
+                              const isSelected = selected.includes(topic);
+                              const isDisabled = !isSelected && selected.length >= MAX_TOPICS;
+                              return (
+                                <TouchableOpacity
+                                  key={topic}
+                                  activeOpacity={0.8}
+                                  disabled={isDisabled}
+                                  onPress={() => toggleTopic(topic)}
+                                  style={[
+                                    s.chip,
+                                    {
+                                      borderColor: isSelected ? colors.primary : colors.border,
+                                      backgroundColor: isSelected
+                                        ? colors.primary + "28"
+                                        : colors.card,
+                                      opacity: isDisabled ? 0.35 : 1,
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      s.chipText,
+                                      {
+                                        color: isSelected ? colors.primary : colors.foreground,
+                                        fontFamily: isSelected ? "Inter_600SemiBold" : "Inter_400Regular",
+                                      },
+                                    ]}
+                                  >
+                                    {topic}
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })}
+
+                            {(() => {
+                              const isDisabled = selected.length >= MAX_TOPICS;
+                              return (
+                                <TouchableOpacity
+                                  activeOpacity={0.8}
+                                  disabled={isDisabled}
+                                  onPress={() => handleOtroPress(cat)}
+                                  style={[
+                                    s.chip,
+                                    {
+                                      borderColor: colors.border,
+                                      backgroundColor: colors.card,
+                                      opacity: isDisabled ? 0.35 : 1,
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      s.chipText,
+                                      {
+                                        color: colors.foreground,
+                                        fontFamily: "Inter_500Medium",
+                                        fontStyle: "italic",
+                                      },
+                                    ]}
+                                  >
+                                    Otro...
+                                  </Text>
+                                </TouchableOpacity>
+                              );
+                            })()}
+                          </View>
+                        </View>
+                      )}
+                    </View>
+                  );
+                }
+              )}
+
+              {/* Tema libre */}
+              <View style={[s.freeWrap, { borderTopColor: colors.border }]}>
+                <Text style={[s.freeLabel, { color: colors.mutedForeground }]}>Tema Libre</Text>
+                <View style={s.freeRow}>
+                  <TextInput
+                    ref={freeTextInputRef}
+                    style={[
+                      s.freeInput,
+                      {
+                        borderColor: colors.border,
+                        color: colors.foreground,
+                        backgroundColor: colors.card,
+                      },
+                    ]}
+                    value={freeText}
+                    onChangeText={setFreeText}
+                    placeholder={placeholderText}
+                    placeholderTextColor={colors.mutedForeground}
+                    autoCapitalize="words"
+                    maxLength={40}
+                    returnKeyType="done"
+                    onSubmitEditing={addFreeText}
+                  />
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={addFreeText}
+                    disabled={!freeText.trim() || selected.length >= MAX_TOPICS}
+                    style={[
+                      s.addBtn,
+                      {
+                        backgroundColor: colors.primary,
+                        opacity: !freeText.trim() || selected.length >= MAX_TOPICS ? 0.45 : 1,
+                      },
+                    ]}
+                  >
+                    <Feather name="plus" size={15} color="#fff" />
+                    <Text style={s.addBtnText}>Añadir</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Footer fijo */}
+            <View
               style={[
-                s.saveBtnText,
-                { color: canSave ? "#fff" : colors.mutedForeground },
+                s.footer,
+                {
+                  borderTopColor: colors.border,
+                  paddingBottom: Math.max(insets.bottom, 12),
+                  backgroundColor: colors.background,
+                },
               ]}
             >
-              Guardar Selección
-            </Text>
-          </TouchableOpacity>
+              <Text style={[s.counter, { color: colors.mutedForeground }]}>
+                ({selected.length} de {MAX_TOPICS}) Categorias seleccionadas:
+              </Text>
+
+              {selected.length > 0 && (
+                <View style={s.selectedChipsContainer}>
+                  {selected.map((topic) => (
+                    <TouchableOpacity
+                      key={topic}
+                      style={[
+                        s.selectedChip,
+                        {
+                          backgroundColor: colors.primary + "1A",
+                          borderColor: colors.primary + "40",
+                        },
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => toggleTopic(topic)}
+                    >
+                      <Text style={[s.selectedChipText, { color: colors.primary }]}>
+                        {topic}
+                      </Text>
+                      <Feather name="x" size={14} color={colors.primary} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                disabled={!canSave}
+                onPress={handleConfirm}
+                style={[
+                  s.saveBtn,
+                  {
+                    backgroundColor: canSave ? colors.primary : colors.secondary,
+                    marginTop: 6,
+                  },
+                ]}
+              >
+                <Feather
+                  name="check"
+                  size={16}
+                  color={canSave ? "#fff" : colors.mutedForeground}
+                />
+                <Text
+                  style={[
+                    s.saveBtnText,
+                    { color: canSave ? "#fff" : colors.mutedForeground },
+                  ]}
+                >
+                  Guardar Selección
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
-    container: {
+    modalOverlay: {
       flex: 1,
+      justifyContent: "flex-end",
+    },
+    modalBackdrop: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.45)",
+    },
+    modalContent: {
+      flex: 1,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      overflow: "hidden",
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       paddingHorizontal: 20,
+      paddingTop: 20,
       paddingBottom: 16,
       borderBottomWidth: 1,
     },
