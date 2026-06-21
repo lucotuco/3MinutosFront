@@ -10,6 +10,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  DeviceEventEmitter,
 } from "react-native";
 import {
   mediaDevices,
@@ -18,10 +19,11 @@ import {
   type MediaStream,
 } from "react-native-webrtc";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
+import { Audio } from "expo-av";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
+import InCallManager from 'react-native-incall-manager';
 
 type Status = "idle" | "connecting" | "connected" | "error";
 
@@ -35,6 +37,7 @@ export default function NewsAgentScreen() {
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const startingRef = useRef(false);
+  const wiredListenerRef = useRef<any>(null);
 
   const introSentRef = useRef(false);
   const introInProgressRef = useRef(false);
@@ -133,6 +136,7 @@ export default function NewsAgentScreen() {
     pendingAssistantTranscriptRef.current = "";
 
     setStatus("idle");
+    InCallManager.stop();
   }, []);
 
   const startSession = useCallback(async () => {
@@ -144,6 +148,14 @@ export default function NewsAgentScreen() {
       Alert.alert("Sin usuario", "No encontramos tu sesión.");
       return;
     }
+
+    InCallManager.start({ media: 'video' });
+
+    // 1. Escuchamos si los enchufás/desenchufás en el medio de la charla
+    wiredListenerRef.current = DeviceEventEmitter.addListener('WiredHeadset', (data) => {
+      InCallManager.setForceSpeakerphoneOn(!data.isPlugged);
+    });
+
 
     startingRef.current = true;
     introSentRef.current = false;
@@ -166,7 +178,11 @@ export default function NewsAgentScreen() {
       setDigestDate(secretResponse.digestDate);
 
       const stream = await mediaDevices.getUserMedia({
-        audio: true,
+        audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        }as any,
         video: false,
       });
 
@@ -225,7 +241,7 @@ export default function NewsAgentScreen() {
         transcriptRef.current = "Dan está arrancando la conversación...\n\n";
         flushTranscriptToScreen();
 
-        sendClientEvent({
+        /*sendClientEvent({
           type: "conversation.item.create",
           item: {
             type: "message",
@@ -238,7 +254,7 @@ export default function NewsAgentScreen() {
               },
             ],
           },
-        });
+        });*/
 
         sendClientEvent({
           type: "response.create",
@@ -278,7 +294,14 @@ export default function NewsAgentScreen() {
 
         if (state === "connected") {
           setStatus("connected");
-          scheduleAgentIntro();
+          InCallManager.getIsWiredHeadsetPluggedIn()
+            .then((isPlugged: boolean) => {
+              InCallManager.setForceSpeakerphoneOn(!isPlugged);
+            })
+            .catch(() => {
+              InCallManager.setForceSpeakerphoneOn(true); // Fallback al parlante grande
+            });
+          //scheduleAgentIntro();
         }
 
         if (
