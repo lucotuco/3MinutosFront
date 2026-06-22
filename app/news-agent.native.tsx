@@ -52,6 +52,7 @@ export default function NewsAgentScreen() {
   const [status, setStatus] = useState<Status>("idle");
   const [transcript, setTranscript] = useState("");
   const [digestDate, setDigestDate] = useState<string | null>(null);
+  const [speakerOn, setSpeakerOn] = useState(true);
 
   const setLocalMicEnabled = useCallback((enabled: boolean) => {
     try {
@@ -60,6 +61,28 @@ export default function NewsAgentScreen() {
       });
     } catch {}
   }, []);
+
+  const toggleSpeaker = useCallback(async () => {
+    const nextState = !speakerOn;
+    setSpeakerOn(nextState);
+
+    // 1. Destrabamos el candado de Expo AV
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        // Si usamos altavoz (true), esto debe ser false. Y viceversa.
+        playThroughEarpieceAndroid: !nextState, 
+      });
+    } catch (e) {
+      console.log("Error destrabando expo-av:", e);
+    }
+
+    // 2. Le ordenamos el cambio a InCallManager
+    InCallManager.setForceSpeakerphoneOn(nextState);
+  }, [speakerOn]);
 
   const flushTranscriptToScreen = useCallback(() => {
     setTranscript(transcriptRef.current);
@@ -148,14 +171,20 @@ export default function NewsAgentScreen() {
       Alert.alert("Sin usuario", "No encontramos tu sesión.");
       return;
     }
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: !speakerOn, 
+      });
+    } catch (e) {}
 
-    InCallManager.start({ media: 'video' });
-
-    // 1. Escuchamos si los enchufás/desenchufás en el medio de la charla
-    wiredListenerRef.current = DeviceEventEmitter.addListener('WiredHeadset', (data) => {
-      InCallManager.setForceSpeakerphoneOn(!data.isPlugged);
-    });
-
+    // 2. Iniciamos InCallManager con Cancelación de Eco (audio) 
+    // PERO con su ruteo automático APAGADO (auto: false).
+    InCallManager.start({ media: 'audio', auto: false });
+    InCallManager.setForceSpeakerphoneOn(speakerOn);
 
     startingRef.current = true;
     introSentRef.current = false;
@@ -261,7 +290,7 @@ export default function NewsAgentScreen() {
           response: {
             output_modalities: ["audio"],
             instructions:
-              "Respondé al mensaje inicial del usuario. Empezá vos la conversación. Saludá breve, cálido y cercano, como Dan Agente Virtual. Preguntá cuál de las noticias del digest quiere discutir. No des un resumen largo todavía. No esperes a que el usuario hable primero.",
+              "Respondé al mensaje inicial del usuario. Empezá vos la conversación. Saludá breve, cálido y cercano, como Dan Agente Virtual. Preguntá cuál de las noticias del resumen quiere discutir. No des un resumen largo todavía. No esperes a que el usuario hable primero.",
           },
         });
       };
@@ -294,14 +323,7 @@ export default function NewsAgentScreen() {
 
         if (state === "connected") {
           setStatus("connected");
-          InCallManager.getIsWiredHeadsetPluggedIn()
-            .then((isPlugged: boolean) => {
-              InCallManager.setForceSpeakerphoneOn(!isPlugged);
-            })
-            .catch(() => {
-              InCallManager.setForceSpeakerphoneOn(true); // Fallback al parlante grande
-            });
-          //scheduleAgentIntro();
+          InCallManager.setForceSpeakerphoneOn(speakerOn);
         }
 
         if (
@@ -329,13 +351,10 @@ export default function NewsAgentScreen() {
             responseInProgressRef.current = true;
           }
 
-          // El usuario habló y el server cerró ese input.
-          // Marcamos que esperamos la transcripción final del usuario.
           if (event.type === "input_audio_buffer.committed") {
             awaitingUserTranscriptRef.current = true;
           }
 
-          // Pintamos lo que dijo el usuario recién cuando llega completo.
           if (
             event.type ===
             "conversation.item.input_audio_transcription.completed"
@@ -348,8 +367,6 @@ export default function NewsAgentScreen() {
               appendTranscript(`\n\nVos: ${userText.trim()}\n`);
             }
 
-            // Si Dan terminó antes pero lo retuvimos para no mezclar,
-            // lo pintamos ahora, después del texto del usuario.
             if (pendingAssistantTranscriptRef.current.trim()) {
               const pending = pendingAssistantTranscriptRef.current.trim();
               pendingAssistantTranscriptRef.current = "";
@@ -358,10 +375,6 @@ export default function NewsAgentScreen() {
             }
           }
 
-          // Importante:
-          // NO pintamos response.output_audio_transcript.delta.
-          // Los delta llegan en pedazos y se mezclan visualmente con tu frase.
-          // Pintamos la respuesta de Dan solo cuando llega completa.
           if (event.type === "response.output_audio_transcript.done") {
             const assistantText = event.transcript || "";
 
@@ -494,7 +507,7 @@ export default function NewsAgentScreen() {
           </Text>
           <Text style={[s.subtitle, { color: colors.muted }]}>
             {digestDate
-              ? `Contexto del digest: ${digestDate}`
+              ? `Contexto del resumen: ${digestDate}`
               : "Conversá por voz sobre tus noticias."}
           </Text>
         </View>
@@ -530,6 +543,26 @@ export default function NewsAgentScreen() {
           {status === "connected" && "Escuchando. Tocá para cortar."}
           {status === "error" && "Hubo un problema al conectar."}
         </Text>
+
+        {isConnected && (
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={toggleSpeaker}
+            style={[
+              s.speakerBtn,
+              { backgroundColor: colors.card, borderColor: colors.border }
+            ]}
+          >
+            <Feather 
+              name={speakerOn ? "volume-2" : "headphones"} 
+              size={18} 
+              color={colors.text} 
+            />
+            <Text style={[s.speakerBtnText, { color: colors.text }]}>
+              {speakerOn ? "Altavoz" : "Auricular"}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       <ScrollView
@@ -626,5 +659,20 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 14,
       lineHeight: 20,
       fontFamily: "Inter_500Medium",
+    },
+    speakerBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderWidth: 1,
+      borderRadius: 999,
+      marginTop: 20, 
+    },
+    speakerBtnText: {
+      fontSize: 14,
+      fontFamily: "Inter_600SemiBold",
     },
   });
