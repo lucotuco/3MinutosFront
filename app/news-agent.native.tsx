@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -62,6 +62,29 @@ export default function NewsAgentScreen() {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    // Escucha auriculares de cable
+    const wiredListener = DeviceEventEmitter.addListener('WiredHeadset', (data) => {
+      console.log("🎧 [DEBUG] Auricular con cable detectado. Estado:", data);
+    });
+
+    // Escucha auriculares Bluetooth
+    const btListener = DeviceEventEmitter.addListener('BlueToothHeadset', (data) => {
+      console.log("🦷 [DEBUG] Auricular Bluetooth detectado. Estado:", data);
+    });
+
+    // (Opcional) Escucha si el altavoz se prende o apaga
+    const speakerListener = DeviceEventEmitter.addListener('Speaker', (data) => {
+      console.log("🔊 [DEBUG] Cambio en el altavoz. Estado:", data);
+    });
+
+    return () => {
+      wiredListener.remove();
+      btListener.remove();
+      speakerListener.remove();
+    };
+  }, []);
+
   const toggleSpeaker = useCallback(async () => {
     const nextState = !speakerOn;
     setSpeakerOn(nextState);
@@ -73,7 +96,6 @@ export default function NewsAgentScreen() {
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
-        // Si usamos altavoz (true), esto debe ser false. Y viceversa.
         playThroughEarpieceAndroid: !nextState, 
       });
     } catch (e) {
@@ -177,14 +199,17 @@ export default function NewsAgentScreen() {
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: !speakerOn, 
+        playThroughEarpieceAndroid: false, 
       });
     } catch (e) {}
 
     // 2. Iniciamos InCallManager con Cancelación de Eco (audio) 
     // PERO con su ruteo automático APAGADO (auto: false).
+    /*
     InCallManager.start({ media: 'audio', auto: false });
-    InCallManager.setForceSpeakerphoneOn(speakerOn);
+    InCallManager.setForceSpeakerphoneOn(speakerOn);*/
+    // Y PONÉ ESTO:
+    InCallManager.start({ media: 'video' });
 
     startingRef.current = true;
     introSentRef.current = false;
@@ -211,6 +236,10 @@ export default function NewsAgentScreen() {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        googEchoCancellation: true,
+        googAec3: true,
+        googNoiseSuppression: true,
+        googTypingNoiseDetection: true,
         }as any,
         video: false,
       });
@@ -323,7 +352,7 @@ export default function NewsAgentScreen() {
 
         if (state === "connected") {
           setStatus("connected");
-          InCallManager.setForceSpeakerphoneOn(speakerOn);
+          //InCallManager.setForceSpeakerphoneOn(speakerOn);
         }
 
         if (
@@ -544,6 +573,7 @@ export default function NewsAgentScreen() {
           {status === "error" && "Hubo un problema al conectar."}
         </Text>
 
+        {/*
         {isConnected && (
           <TouchableOpacity
             activeOpacity={0.8}
@@ -563,6 +593,7 @@ export default function NewsAgentScreen() {
             </Text>
           </TouchableOpacity>
         )}
+        */}
       </View>
 
       <ScrollView
