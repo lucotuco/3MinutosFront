@@ -457,9 +457,9 @@ export default function DigestScreen() {
       const message =
         error instanceof Error
           ? error.message
-          : "No pudimos generar un nuevo digest.";
+          : "No pudimos generar un nuevo resumen.";
 
-      Alert.alert("No se pudo generar un nuevo digest", message);
+      Alert.alert("No se pudo generar un nuevo resumen", message);
     } finally {
       setRefreshing(false);
     }
@@ -539,7 +539,7 @@ export default function DigestScreen() {
 
         {isError && (
           <ErrorState
-            title="No pudimos cargar tu digest"
+            title="No pudimos cargar tu resumen"
             message={
               error instanceof Error
                 ? error.message

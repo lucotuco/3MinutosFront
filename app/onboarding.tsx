@@ -162,7 +162,7 @@ export default function OnboardingScreen() {
             <Text style={[s.appName, { color: colors.text }]}>3 Minutos</Text>
 
             <Text style={[s.subtitle, { color: colors.mutedText }]}>
-              Tu digest de noticias personalizado
+              Tu resumen de noticias personalizado
             </Text>
           </View>
 
