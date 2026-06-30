@@ -334,6 +334,18 @@ export default function DigestScreen() {
   }, []);
 
   useEffect(() => {
+    if (sound) {
+      console.log("🔄 [AUDIO FRONT] Detectado cambio de noticias (Refresh). Reseteando reproductor...");
+      sound.unloadAsync()
+        .then(() => {
+          setSound(null);
+          setPlaying(false);
+        })
+        .catch((err) => console.log("Error descargando audio en refresh:", err));
+    }
+  }, [data?.digest?.items]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const loadWeather = async () => {
@@ -395,19 +407,32 @@ export default function DigestScreen() {
     };
   }, [sound]);
 
+  const [loadingAudio, setLoadingAudio] = useState(false);
+
+  const [nextSound, setNextSound] = useState<Audio.Sound | null>(null);
+
   const handlePlayDigest = async () => {
     try {
-      if (!data?.digest?.audioUrl) return;
+      if (!userId) return;
 
-      if (sound && playing) {
-        await sound.pauseAsync();
-        setPlaying(false);
+      // Si el audio ya existe y está cargado, manejamos pausa/play normal
+      if (sound) {
+        if (playing) {
+          await sound.pauseAsync();
+          setPlaying(false);
+        } else {
+          await sound.playAsync();
+          setPlaying(true);
+        }
         return;
       }
 
-      if (sound && !playing) {
-        await sound.playAsync();
-        setPlaying(true);
+      setLoadingAudio(true);
+      const res = await api.playDigest(userId);
+      
+      if (!res.success || !res.playlist || res.playlist.length === 0) {
+        setLoadingAudio(false);
+        Alert.alert("Error", "No pudimos preparar tu playlist de audio.");
         return;
       }
 
@@ -419,28 +444,82 @@ export default function DigestScreen() {
         playThroughEarpieceAndroid: false,
       });
 
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: data.digest.audioUrl },
-        {
-          shouldPlay: true,
-          volume: 1,
-          isMuted: false,
+      const playlist = res.playlist;
+      let currentTrackIndex = 0;
+      let loadedNextSound: Audio.Sound | null = null;
+
+      // Función auxiliar para precargar un track en segundo plano
+      const preloadTrack = async (index: number) => {
+        if (index >= playlist.length) return null;
+        try {
+          const { sound: preloaded } = await Audio.Sound.createAsync(
+            { uri: playlist[index] },
+            { shouldPlay: false, volume: 1 }
+          );
+          return preloaded;
+        } catch (e) {
+          console.log(`Error precargando track ${index}:`, e);
+          return null;
         }
-      );
+      };
 
-      setSound(newSound);
-      setPlaying(true);
-
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-
-        if (status.didJustFinish) {
+      // Función principal de reproducción
+      const playTrack = async (index: number, preloadedSoundObject: Audio.Sound | null) => {
+        if (index >= playlist.length) {
           setPlaying(false);
-          newSound.setPositionAsync(0).catch(() => {});
+          setSound(null);
+          setNextSound(null);
+          return;
         }
-      });
+
+        let activeSound: Audio.Sound;
+
+        // Si ya teníamos el audio precargado en memoria, lo usamos directamente (¡Gaps de 0ms!)
+        if (preloadedSoundObject) {
+          activeSound = preloadedSoundObject;
+        } else {
+          // Fallback por si no llegó a precargarse a tiempo
+          const { sound: loaded } = await Audio.Sound.createAsync(
+            { uri: playlist[index] },
+            { shouldPlay: false, volume: 1 }
+          );
+          activeSound = loaded;
+        }
+
+        setSound(activeSound);
+        setPlaying(true);
+        setLoadingAudio(false);
+
+        // Arrancamos la reproducción del track actual
+        await activeSound.playAsync();
+
+        // 🚀 LA MAGIA: Mientras suena este track, ya empezamos a descargar el SIGUIENTE
+        const nextIndex = index + 1;
+        loadedNextSound = await preloadTrack(nextIndex);
+        setNextSound(loadedNextSound);
+
+        // Monitoreamos cuándo termina el track actual
+        activeSound.setOnPlaybackStatusUpdate(async (status) => {
+          if (!status.isLoaded) return;
+          
+          if (status.didJustFinish) {
+            // Limpiamos el audio viejo de la memoria
+            await activeSound.unloadAsync().catch(() => {});
+            
+            // Saltamos al siguiente pasándole el objeto que YA está descargado
+            currentTrackIndex++;
+            playTrack(currentTrackIndex, loadedNextSound);
+          }
+        });
+      };
+
+      // Arrancamos cargando el primer audio de la lista (el saludo)
+      playTrack(currentTrackIndex, null);
+
     } catch (error) {
+      setLoadingAudio(false);
       console.log("Error reproduciendo digest:", error);
+      Alert.alert("Error", "Hubo un problema al generar o reproducir el audio.");
     }
   };
 
@@ -451,6 +530,12 @@ export default function DigestScreen() {
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (sound) {
+        await sound.stopAsync().catch(() => {});
+        await sound.unloadAsync().catch(() => {});
+        setSound(null);
+        setPlaying(false);
+      }
       await api.refreshDigest(userId);
       await refetch();
     } catch (error) {
@@ -594,13 +679,13 @@ export default function DigestScreen() {
               <TouchableOpacity
                 activeOpacity={0.85}
                 onPress={handlePlayDigest}
-                disabled={!data.digest.audioUrl}
+                disabled={loadingAudio} // Solo se bloquea temporalmente mientras el backend responde
                 style={[
                   s.listenButton,
                   {
                     borderColor: colors.border,
                     backgroundColor: colors.card,
-                    opacity: data.digest.audioUrl ? 1 : 0.6,
+                    opacity: loadingAudio ? 0.6 : 1, // Ya no se queda gris por defecto 🎉
                   },
                 ]}
               >
@@ -625,7 +710,7 @@ export default function DigestScreen() {
                   </Text>
 
                   <Text style={[s.listenSub, { color: colors.mutedText }]}>
-                    {data.digest.audioUrl ? "Disponible" : "Generando audio"}
+                    {loadingAudio ? "Preparando audio..." : playing ? "Reproduciendo" : "Disponible en audio"}
                   </Text>
                 </View>
               </TouchableOpacity>

@@ -398,4 +398,10 @@ async getNewsAgentClientSecret(
       }
     );
   },
+
+  async playDigest(userId: string): Promise<{ success: boolean; playlist: string[] }> {
+    return request<{ success: boolean; playlist: string[] }>(`/users/${userId}/digest/play`, {
+      method: "POST",
+    });
+  }
 };
