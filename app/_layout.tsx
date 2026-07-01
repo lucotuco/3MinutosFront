@@ -34,8 +34,15 @@ const queryClient = new QueryClient({
 
 function RootLayoutNav() {
   const { isLoading } = useUser();
-
-  if (isLoading) {
+const [forceDelay, setForceDelay] = React.useState(true);
+  
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceDelay(false);
+    }, 3000); 
+    return () => clearTimeout(timer);
+  }, []);
+  if (isLoading || forceDelay) {
     return (
       <View
         style={{
@@ -55,8 +62,6 @@ function RootLayoutNav() {
           }}
           resizeMode="contain"
         />
-
-        <ActivityIndicator size="small" color="#4F8CFF" />
 
         <Text
           style={{
