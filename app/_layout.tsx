@@ -9,7 +9,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
-import { ActivityIndicator, View } from "react-native";
+import { ActivityIndicator, View, Text, Image } from "react-native";
+import appLogo from "../assets/images/icon.png";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
@@ -41,9 +42,35 @@ function RootLayoutNav() {
           flex: 1,
           alignItems: "center",
           justifyContent: "center",
+          backgroundColor: "#05070B",
+          gap: 24, 
         }}
       >
-        <ActivityIndicator />
+        <Image
+          source={appLogo}
+          style={{
+            width: 96,
+            height: 96,
+            borderRadius: 24,
+          }}
+          resizeMode="contain"
+        />
+
+        <ActivityIndicator size="small" color="#4F8CFF" />
+
+        <Text
+          style={{
+            fontSize: 16,
+            fontWeight: "600",
+            fontFamily: "Inter_600SemiBold",
+            color: "#9AA4BF", 
+            textAlign: "center",
+            paddingHorizontal: 40,
+            lineHeight: 22,
+          }}
+        >
+          Información clave. Sin ruido. En 3 minutos.
+        </Text>
       </View>
     );
   }

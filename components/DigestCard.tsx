@@ -211,7 +211,7 @@ export function DigestCard({ item, index }: DigestCardProps) {
 const styles = StyleSheet.create({
   card: {
     flexDirection: "row",
-    alignItems: "flex-start", // <-- CRÍTICO: Esto hace que la foto se mantenga arriba
+    alignItems: "stretch", 
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 12,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
     flexDirection: "column",
     alignItems: "center",
     gap: 12,
-    width: 95, // Fijamos el ancho de la columna igual al de la imagen
+    width: 95, 
   },
   image: {
     width: 95,
@@ -240,7 +240,10 @@ const styles = StyleSheet.create({
   },
   // --- ESTILOS DEL SPONSOR VERTICAL ---
   sponsorContainerVertical: {
+    // 2. ADD THIS LINE
+    marginTop: "auto",
     width: "100%",
+    // 3. CHANGE THIS LINE from "flex-end" to "center"
     alignItems: "center",
     justifyContent: "center",
     gap: 6,

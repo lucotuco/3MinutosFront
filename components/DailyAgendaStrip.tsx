@@ -129,6 +129,24 @@ export function DailyAgendaStrip({
 
   const visibleEvents = events?.slice(0, 3) ?? [];
 
+  const getWeatherColor = (iconName: string) => {
+    switch (iconName) {
+      case "sun":
+        return "#F59E0B"; 
+      case "cloud-rain":
+        return "#60A5FA";
+      case "cloud-drizzle":
+        return "#60A5FA"; 
+      case "cloud-lightning":
+        return "#8B5CF6"; 
+      case "cloud-snow":
+        return "#E0F2FE"; 
+      case "cloud":
+      default:
+        return colors.mutedText;
+    }
+  };
+
   return (
     <View
       style={[
@@ -151,7 +169,7 @@ export function DailyAgendaStrip({
           </Text>
 
           <View style={s.weatherRow}>
-            <Feather name={weatherIcon} size={11} color={colors.mutedText} />
+            <Feather name={weatherIcon} size={11} color={getWeatherColor(weatherIcon)} />
 
             {weatherLoading ? (
               <ActivityIndicator size="small" color={colors.mutedText} />
@@ -256,7 +274,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     todayText: {
-      fontSize: 12,
+      fontSize: 13,
       lineHeight: 15,
       fontFamily: "Inter_700Bold",
       marginBottom: 3,
@@ -271,8 +289,8 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
 
     weatherText: {
       flex: 1,
-      fontSize: 10,
-      lineHeight: 13,
+      fontSize: 12,
+      lineHeight: 14,
       fontFamily: "Inter_600SemiBold",
     },
 
@@ -297,8 +315,8 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     },
 
     eventsHeader: {
-      fontSize: 9,
-      lineHeight: 11,
+      fontSize: 12,
+      lineHeight: 14,
       fontFamily: "Inter_700Bold",
       letterSpacing: 0.45,
     },
@@ -316,7 +334,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
 
     eventMarker: {
       width: 38,
-      fontSize: 11,
+      fontSize: 12,
       lineHeight: 14,
       fontFamily: "Inter_700Bold",
       textTransform: "lowercase",

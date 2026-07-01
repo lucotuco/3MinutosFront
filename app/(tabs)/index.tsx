@@ -709,54 +709,49 @@ export default function DigestScreen() {
                 />
               ))}
 
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={handlePlayDigest}
-                disabled={loadingAudio} // Solo se bloquea temporalmente mientras el backend responde
-                style={[
-                  s.listenButton,
-                  {
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    opacity: loadingAudio ? 0.6 : 1, // Ya no se queda gris por defecto 🎉
-                  },
-                ]}
-              >
-                <View
+              {/* 🎧 MÓDULO UNIFICADO: AUDIO + EFEMÉRIDE */}
+              <View style={[s.unifiedCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+                
+                {/* 1. SECCIÓN PRINCIPAL: BOTÓN DE AUDIO (Destacado) */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={handlePlayDigest}
+                  disabled={loadingAudio}
                   style={[
-                    s.playCircle,
-                    {
-                      backgroundColor: colors.primary,
-                    },
+                    s.unifiedAudioBtn,
+                    { opacity: loadingAudio ? 0.6 : 1 }
                   ]}
                 >
-                  <Feather
-                    name={playing ? "pause" : "play"}
-                    size={18}
-                    color="#fff"
-                  />
+                  <View style={[s.unifiedPlayCircle, { backgroundColor: colors.primary }]}>
+                    <Feather name={playing ? "pause" : "play"} size={22} color="#fff" style={{ marginLeft: playing ? 0 : 2 }} />
+                  </View>
+
+                  <View style={s.listenTextWrap}>
+                    <Text style={[s.unifiedAudioTitle, { color: colors.text }]}>
+                      Escuchar resumen
+                    </Text>
+                    <Text style={[s.unifiedAudioSub, { color: colors.primary }]}>
+                      {loadingAudio ? "PREPARANDO AUDIO..." : playing ? "REPRODUCIENDO" : "DISPONIBLE EN AUDIO"}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* 2. LÍNEA SEPARADORA */}
+                <View style={[s.divider, { backgroundColor: colors.border }]} />
+
+                {/* 3. SECCIÓN SECUNDARIA: EFEMÉRIDE (Sutil) */}
+                <View style={s.unifiedEphemeris}>
+                  <Feather name="calendar" size={16} color={colors.mutedText} style={{ marginTop: 2 }} />
+                  <View style={s.ephemerisTextWrap}>
+                    <Text style={[s.unifiedEphemerisTitle, { color: colors.text }]}>
+                      Efeméride del Día
+                    </Text>
+                    <Text style={[s.unifiedEphemerisDesc, { color: colors.mutedText }]}>
+                      {dynamicDayTitle}
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={s.listenTextWrap}>
-                  <Text style={[s.listenTitle, { color: colors.text }]}>
-                    Escuchar resumen
-                  </Text>
-
-                  <Text style={[s.listenSub, { color: colors.mutedText }]}>
-                    {loadingAudio ? "Preparando audio..." : playing ? "Reproduciendo" : "Disponible en audio"}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-              
-              {/* TARJETA DE EFEMÉRIDES (Reemplaza al Agente Virtual) */}
-              <View style={[s.ephemerisCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[s.ephemerisIconWrap, { backgroundColor: colors.background }]}>
-                  <Feather name="calendar" size={20} color={colors.primary} />
-                </View>
-                <View style={s.ephemerisTextWrap}>
-                  <Text style={[s.ephemerisTitle, { color: colors.text }]}>Efeméride del Día</Text>
-                  <Text style={[s.ephemerisDesc, { color: colors.mutedText }]}>{dynamicDayTitle}</Text>
-                </View>
               </View>
 
             </>
@@ -955,6 +950,68 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
     ephemerisDesc: {
       fontSize: 15,
       fontWeight: "500",
+      lineHeight: 20,
+    },
+    unifiedCard: {
+      borderRadius: 20,
+      borderWidth: 1,
+      marginTop: 4,
+      marginBottom: 24,
+      overflow: "hidden", // Hace que el fondo respete los bordes redondeados
+    },
+    unifiedAudioBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      paddingVertical: 18, // Un poco más alto para destacarlo
+      gap: 16,
+    },
+    unifiedPlayCircle: {
+      width: 52, // Círculo de play más grande
+      height: 52,
+      borderRadius: 26,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 4, // Sombra para que resalte
+    },
+    listenTextWrap: {
+      flex: 1,
+    },
+    unifiedAudioTitle: {
+      fontSize: 17,
+      fontFamily: "Inter_700Bold",
+      marginBottom: 4,
+    },
+    unifiedAudioSub: {
+      fontSize: 11,
+      fontFamily: "Inter_700Bold",
+      textTransform: "uppercase",
+      letterSpacing: 0.5,
+    },
+    divider: {
+      height: 1,
+      width: "100%",
+    },
+    unifiedEphemeris: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      padding: 16,
+      paddingTop: 14,
+      paddingBottom: 16,
+      gap: 12,
+    },
+    unifiedEphemerisTitle: {
+      fontSize: 13,
+      fontWeight: "600",
+      marginBottom: 2,
+    },
+    unifiedEphemerisDesc: {
+      fontSize: 14,
+      fontWeight: "400",
       lineHeight: 20,
     },
   });
