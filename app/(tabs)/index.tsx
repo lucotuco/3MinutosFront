@@ -23,7 +23,6 @@ import { DailyAgendaStrip } from "@/components/DailyAgendaStrip";
 import { DigestCard } from "@/components/DigestCard";
 import { EmptyState } from "@/components/EmptyState";
 import { ErrorState } from "@/components/ErrorState";
-import { NewsAgentButton } from "@/components/NewsAgentButton";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
@@ -245,10 +244,6 @@ function DigestLoadingState() {
         Estamos buscando las mejores noticias para ti
       </Text>
 
-      <Text style={[s.loadingSubtitle, { color: colors.mutedText }]}>
-        Analizando tus temas, filtrando ruido y preparando tu resumen de 3
-        minutos.
-      </Text>
 
       <View style={s.dotsRow}>
         <Animated.View
@@ -293,6 +288,7 @@ export default function DigestScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
+  
 
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
@@ -410,6 +406,28 @@ export default function DigestScreen() {
   const [loadingAudio, setLoadingAudio] = useState(false);
 
   const [nextSound, setNextSound] = useState<Audio.Sound | null>(null);
+
+  const [loadingText, setLoadingText] = useState("Buscando las mejores noticias...");
+
+  useEffect(() => {
+    if (!isLoading && !refreshing) return;
+    
+    const phrases = [
+      "Analizando tus Categorias...",
+      "Buscando las mejores noticias...",
+      "Redactando tu resumen...",
+      "Sintetizando la información...",
+      "Afinando últimos detalles..."
+    ];
+    let i = 0;
+    
+    const interval = setInterval(() => {
+      i = (i + 1) % phrases.length;
+      setLoadingText(phrases[i]);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [isLoading, refreshing]);
 
   const handlePlayDigest = async () => {
     try {
@@ -620,7 +638,20 @@ export default function DigestScreen() {
           weatherLoading={weather.loading}
         />
 
-        {isLoading && <DigestLoadingState />}
+        {(isLoading || refreshing) && (
+          <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
+            <DigestLoadingState />
+            <Text style={{ 
+              marginTop: 16, 
+              fontSize: 15, 
+              fontWeight: "600", 
+              color: colors.primary,
+              textAlign: "center"
+            }}>
+              {loadingText}
+            </Text>
+          </View>
+        )}
 
         {isError && (
           <ErrorState
@@ -634,7 +665,8 @@ export default function DigestScreen() {
           />
         )}
 
-        {!isLoading &&
+        {/* Agregamos el !refreshing para que esto desaparezca mientras carga */}
+        {!isLoading && !refreshing &&
           !isError &&
           (!data?.digest?.items || data.digest.items.length === 0) && (
             <EmptyState
@@ -643,7 +675,8 @@ export default function DigestScreen() {
             />
           )}
 
-        {!isLoading &&
+        {/* Agregamos el !refreshing para que las noticias viejas se oculten mientras busca nuevas */}
+        {!isLoading && !refreshing &&
           !isError &&
           data?.digest?.items &&
           data.digest.items.length > 0 && (
@@ -714,7 +747,18 @@ export default function DigestScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
-              <NewsAgentButton dayTitle={dynamicDayTitle} />
+              
+              {/* TARJETA DE EFEMÉRIDES (Reemplaza al Agente Virtual) */}
+              <View style={[s.ephemerisCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[s.ephemerisIconWrap, { backgroundColor: colors.background }]}>
+                  <Feather name="calendar" size={20} color={colors.primary} />
+                </View>
+                <View style={s.ephemerisTextWrap}>
+                  <Text style={[s.ephemerisTitle, { color: colors.text }]}>Efeméride del Día</Text>
+                  <Text style={[s.ephemerisDesc, { color: colors.mutedText }]}>{dynamicDayTitle}</Text>
+                </View>
+              </View>
+
             </>
           )}
       </ScrollView>
@@ -882,5 +926,35 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontFamily: "Inter_500Medium",
       textTransform: "uppercase",
       letterSpacing: 0.3,
+    },
+    ephemerisCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      borderRadius: 20,
+      borderWidth: 1,
+      marginTop: 8,
+      marginBottom: 24,
+      gap: 16,
+    },
+    ephemerisIconWrap: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    ephemerisTextWrap: {
+      flex: 1,
+    },
+    ephemerisTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      marginBottom: 4,
+    },
+    ephemerisDesc: {
+      fontSize: 15,
+      fontWeight: "500",
+      lineHeight: 20,
     },
   });
