@@ -65,7 +65,7 @@ const [forceDelay, setForceDelay] = React.useState(true);
 
         <Text
           style={{
-            fontSize: 16,
+            fontSize: 22,
             fontWeight: "600",
             fontFamily: "Inter_600SemiBold",
             color: "#9AA4BF", 
@@ -74,7 +74,7 @@ const [forceDelay, setForceDelay] = React.useState(true);
             lineHeight: 22,
           }}
         >
-          Información clave. Sin ruido. En 3 minutos.
+          3 noticias en 3 minutos.
         </Text>
       </View>
     );
