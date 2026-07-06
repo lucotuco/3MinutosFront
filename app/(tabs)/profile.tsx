@@ -120,11 +120,11 @@ export default function ProfileScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       
-      const email = "tu-correo@3minutos.com"; // 👈 Cambiá esto por tu dirección real de mail
+      const email = "lucasschlez@gmail.com"; // 👈 Cambiá esto por tu dirección real de mail
       const subject = encodeURIComponent("Feedback - App 3 Minutos");
       
       // Le dejamos pre-configurado el ID del usuario abajo de todo para que no lo borre
-      const body = encodeURIComponent(`Hola Lucas,\n\n[Escribí tu feedback acá]\n\n\n\n--- Info técnica (No borrar) ---\nUsuario ID: ${userId || 'N/A'}\nPlataforma: ${Platform.OS}`);
+      const body = encodeURIComponent(`[Escribí tu feedback acá]\n\n\n\n--- Info técnica (No borrar) ---\nUsuario ID: ${userId || 'N/A'}\nPlataforma: ${Platform.OS}`);
       
       const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
       
