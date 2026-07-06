@@ -77,7 +77,6 @@ function ArticleRow({ item }: { item: ShownArticle }) {
             numberOfLines={1}
           >
             {formatDate(item.shownAt)}
-            {item.region || item.section ? ` · ${[item.section, item.region].filter(Boolean).join(" · ")}` : ""}
           </Text>
         </View>
 

@@ -29,6 +29,7 @@ import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
 import { api } from "@/services/api";
 import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { getTodayEfemeride } from "@/constants/efemerides";
+import { useQueryClient } from "@tanstack/react-query";
 
 type WeatherState = {
   label: string;
@@ -288,7 +289,7 @@ export default function DigestScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
-  
+  const queryClient = useQueryClient();
 
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
@@ -556,6 +557,7 @@ export default function DigestScreen() {
       }
       await api.refreshDigest(userId);
       await refetch();
+      await queryClient.invalidateQueries({ queryKey: ["shown-articles", userId] });
     } catch (error) {
       const message =
         error instanceof Error

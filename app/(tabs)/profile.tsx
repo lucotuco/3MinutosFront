@@ -13,6 +13,7 @@ import {
     Text,
     TouchableOpacity,
     View,
+    Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -113,6 +114,24 @@ export default function ProfileScreen() {
       { text: "Cancelar", style: "cancel" },
       { text: "Salir", style: "destructive", onPress: () => clearUserId() },
     ]);
+  };
+
+  const handleFeedback = async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      const email = "tu-correo@3minutos.com"; // 👈 Cambiá esto por tu dirección real de mail
+      const subject = encodeURIComponent("Feedback - App 3 Minutos");
+      
+      // Le dejamos pre-configurado el ID del usuario abajo de todo para que no lo borre
+      const body = encodeURIComponent(`Hola Lucas,\n\n[Escribí tu feedback acá]\n\n\n\n--- Info técnica (No borrar) ---\nUsuario ID: ${userId || 'N/A'}\nPlataforma: ${Platform.OS}`);
+      
+      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+      
+      await Linking.openURL(mailtoUrl);
+    } catch (error) {
+      Alert.alert("Error", "No se pudo abrir la aplicación de correo en tu celular.");
+    }
   };
 
   const s = makeStyles(colors);
@@ -225,22 +244,15 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
 
-            {/* Activo */}
             <View style={s.section}>
-              <View style={[s.switchRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.switchTitle, { color: colors.foreground }]}>Resumen activo</Text>
-                  <Text style={[s.switchSubtitle, { color: colors.mutedForeground }]}>
-                    Pausa o reactiva tus entregas diarias
-                  </Text>
-                </View>
-                <Switch
-                  value={isActive}
-                  onValueChange={(v) => { setIsActive(v); markDirty(); }}
-                  trackColor={{ false: colors.secondary, true: colors.primary }}
-                  thumbColor="#fff"
-                />
-              </View>
+              <TouchableOpacity
+                style={[s.feedbackBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
+                onPress={handleFeedback}
+                activeOpacity={0.8}
+              >
+                <Feather name="mail" size={16} color={colors.primary} />
+                <Text style={[s.feedbackText, { color: colors.foreground }]}>Mandar Feedback</Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -397,4 +409,19 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       marginTop: 10,
     },
     logoutText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+    feedbackBtn: {
+      borderWidth: 1,
+      borderRadius: 16,
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 8,
+      marginTop: 10,
+    },
+    feedbackText: { 
+      fontSize: 15, 
+      fontFamily: "Inter_600SemiBold" 
+    },
   });
