@@ -6,7 +6,8 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 import { DigestItem } from "@/services/api";
-import { CATEGORIES } from "@/constants/categories"; // <-- IMPORTANTE: Lo usamos para adivinar el topic padre
+import { CATEGORIES } from "@/constants/categories";
+import { usePostHog } from 'posthog-react-native';
 
 interface DigestCardProps {
   item: DigestItem;
@@ -59,6 +60,7 @@ const SPONSORS_BY_TOPIC: Record<string, SponsorData> = {
 export function DigestCard({ item, index }: DigestCardProps) {
   const colors = useColors();
   const [expanded, setExpanded] = useState(false);
+  const posthog = usePostHog();
 
   const rankColor = rankColors[index % rankColors.length];
 
@@ -93,12 +95,22 @@ export function DigestCard({ item, index }: DigestCardProps) {
 
   const toggleExpanded = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setExpanded((prev) => !prev);
+    setExpanded((prev) => {
+      const isNowExpanded = !prev;
+      if (isNowExpanded && posthog) {
+        posthog.capture('article_expanded', { topic: item.topic });
+      }
+      return isNowExpanded;
+    });
   };
 
   const openSponsorUrl = async () => {
     if (!currentSponsor.url) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (posthog) {
+      posthog.capture('sponsor_clicked', { sponsor_category: mainCatKey });
+    }
+
     Linking.openURL(currentSponsor.url);
   };
 

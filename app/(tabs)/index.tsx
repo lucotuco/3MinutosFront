@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
+import { usePostHog } from 'posthog-react-native';
 import * as Location from "expo-location";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -290,6 +291,7 @@ export default function DigestScreen() {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [playing, setPlaying] = useState(false);
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
 
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
@@ -376,7 +378,13 @@ export default function DigestScreen() {
 
   useEffect(() => {
     if (!userId || !data?.digest?.items?.length) return;
-
+    if (posthog && data.user) {
+      posthog.identify(userId, {
+        name: data.user.name,
+        topic_distribution: data.user.topics, // Array con los 3 tópicos
+        delivery_time: data.user.deliveryTime // Guarda su hora elegida (ej. "08:00")
+      });
+    }
     const markKey = JSON.stringify({
       items: data.digest.items.map((item) => ({
         articleId: item.articleId ?? "",
@@ -442,11 +450,13 @@ export default function DigestScreen() {
         } else {
           await sound.playAsync();
           setPlaying(true);
+          posthog.capture('audio_play_clicked', { state: 'resumed' });
         }
         return;
       }
 
       setLoadingAudio(true);
+      posthog.capture('audio_play_clicked', { state: 'new_generation' });
       const res = await api.playDigest(userId);
       
       if (!res.success || !res.playlist || res.playlist.length === 0) {
@@ -527,6 +537,9 @@ export default function DigestScreen() {
             
             // Saltamos al siguiente pasándole el objeto que YA está descargado
             currentTrackIndex++;
+            if (currentTrackIndex >= playlist.length) {
+                posthog.capture('audio_completed');
+            }
             playTrack(currentTrackIndex, loadedNextSound);
           }
         });
@@ -546,6 +559,7 @@ export default function DigestScreen() {
     if (!userId || refreshing) return;
 
     setRefreshing(true);
+    posthog.capture('digest_refreshed');
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -582,11 +596,19 @@ export default function DigestScreen() {
         : insets.bottom + 92;
 
   const todayLabel = formatTodayLabel();
+
+  
   
   // Usamos usedFallback que envía el backend
   const hasFallbackItems = data?.digest?.items?.some(
     (item) => item.usedFallback
   );
+  useEffect(() => {
+    if (hasFallbackItems && posthog) {
+      posthog.capture('fallback_shown');
+    }
+  }, [hasFallbackItems, posthog]);
+  
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
@@ -632,6 +654,22 @@ export default function DigestScreen() {
             tintColor={colors.primary}
           />
         }
+        onScroll={({ nativeEvent }) => {
+          // Detectar si llegó cerca del final (al 90% del scroll)
+          const isCloseToBottom = 
+            nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
+            nativeEvent.contentSize.height - 50;
+            
+          if (isCloseToBottom) {
+             // Un pequeño truco para dispararlo solo una vez
+             if (!lastMarkedKeyRef.current?.includes("completed")) {
+                 posthog.capture('digest_completed');
+                 // Marcamos que ya se disparó
+                 lastMarkedKeyRef.current = (lastMarkedKeyRef.current || "") + "_completed";
+             }
+          }
+        }}
+        scrollEventThrottle={400} // Para que no llame a la función mil veces por segundo
       >
        <DailyAgendaStrip
           todayLabel={todayLabel}
@@ -762,6 +800,7 @@ export default function DigestScreen() {
     </View>
   );
 }
+
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({

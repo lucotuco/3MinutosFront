@@ -16,6 +16,7 @@ import {
   getStoredSession,
   setStoredSession,
 } from "@/services/session";
+import { usePostHog } from 'posthog-react-native';
 
 type UserContextValue = {
   userId: string | null;
@@ -52,6 +53,7 @@ export function UserProvider({ children }: Props) {
   const [userId, setUserIdState] = useState<string | null>(null);
   const [authToken, setAuthTokenState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const posthog = usePostHog();
 
   useEffect(() => {
     const load = async () => {
@@ -117,6 +119,9 @@ export function UserProvider({ children }: Props) {
             "[Push] usuario tocó la notificación:",
             response.notification.request.identifier
           );
+        }
+        if (posthog) {
+          posthog.capture('push_opened');
         }
       }
     );

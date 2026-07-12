@@ -11,12 +11,17 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { ActivityIndicator, View, Text, Image } from "react-native";
 import appLogo from "../assets/images/icon.png";
+import { PostHogProvider } from 'posthog-react-native';
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { UserProvider, useUser } from "@/context/UserContext";
 
+const posthogConfig = {
+  apiKey: 'phc_rFLiHw6vNbAieGD3ho9N7BJrYAdxtogEYngMRJjfPqKw',
+  host: 'https://app.posthog.com',
+};
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -34,12 +39,12 @@ const queryClient = new QueryClient({
 
 function RootLayoutNav() {
   const { isLoading } = useUser();
-const [forceDelay, setForceDelay] = React.useState(true);
-  
+  const [forceDelay, setForceDelay] = React.useState(true);
+
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setForceDelay(false);
-    }, 3000); 
+    }, 3000);
     return () => clearTimeout(timer);
   }, []);
   if (isLoading || forceDelay) {
@@ -50,7 +55,7 @@ const [forceDelay, setForceDelay] = React.useState(true);
           alignItems: "center",
           justifyContent: "center",
           backgroundColor: "#05070B",
-          gap: 24, 
+          gap: 24,
         }}
       >
         <Image
@@ -68,7 +73,7 @@ const [forceDelay, setForceDelay] = React.useState(true);
             fontSize: 22,
             fontWeight: "600",
             fontFamily: "Inter_600SemiBold",
-            color: "#9AA4BF", 
+            color: "#9AA4BF",
             textAlign: "center",
             paddingHorizontal: 40,
             lineHeight: 22,
@@ -108,14 +113,16 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-  <SafeAreaProvider>
-    <QueryClientProvider client={queryClient}>
-      <UserProvider>
-        <RootLayoutNav />
-      </UserProvider>
-    </QueryClientProvider>
-  </SafeAreaProvider>
-</GestureHandlerRootView>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <PostHogProvider apiKey={posthogConfig.apiKey} options={{ host: posthogConfig.host }}>
+              <UserProvider>
+                <RootLayoutNav />
+              </UserProvider>
+            </PostHogProvider>
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
     </ErrorBoundary>
   );
 }
