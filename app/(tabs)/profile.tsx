@@ -134,6 +134,14 @@ export default function ProfileScreen() {
     }
   };
 
+  const openPrivacyPolicy = () => {
+    Linking.openURL("https://angry-waltz-37e.notion.site/Pol-tica-de-Privacidad-3-Minutos-39d7c241323780a28d44db6a378f8a36?source=copy_link");
+  };
+
+  const openTerms = () => {
+    Linking.openURL("https://angry-waltz-37e.notion.site/Pol-tica-de-Privacidad-3-Minutos-39d7c241323780a28d44db6a378f8a36?source=copy_link");
+  };
+
   const s = makeStyles(colors);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const botPad = Platform.OS === "web" ? 34 + 84 : insets.bottom + 84;
@@ -263,6 +271,23 @@ export default function ProfileScreen() {
               <Feather name="log-out" size={16} color={colors.destructive} />
               <Text style={[s.logoutText, { color: colors.destructive }]}>Cerrar sesion</Text>
             </TouchableOpacity>
+
+            {/* Sección Legal */}
+            <View style={{ flexDirection: "row", justifyContent: "center", gap: 16, marginTop: 16 }}>
+              <TouchableOpacity onPress={openPrivacyPolicy} activeOpacity={0.7}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, textDecorationLine: "underline" }}>
+                  Privacidad
+                </Text>
+              </TouchableOpacity>
+              
+              <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>•</Text>
+
+              <TouchableOpacity onPress={openTerms} activeOpacity={0.7}>
+                <Text style={{ color: colors.mutedForeground, fontSize: 13, textDecorationLine: "underline" }}>
+                  Términos
+                </Text>
+              </TouchableOpacity>
+            </View>
           </ScrollView>
         )}
       </KeyboardAvoidingView>

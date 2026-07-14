@@ -143,12 +143,14 @@ export function DigestCard({ item, index }: DigestCardProps) {
             onPress={openSponsorUrl}
             style={[styles.sponsorContainerVertical, { borderColor: colors.border, backgroundColor: colors.background }]}
           >
-            <Text style={[styles.sponsorLabel, { color: colors.mutedForeground }]}>PRESENTADO POR</Text>
+            {/*<Text style={[styles.sponsorLabel, { color: colors.mutedForeground }]}>PRESENTADO POR</Text>
             <Image 
               source={currentSponsor.image} 
               style={styles.sponsorImageVertical} 
               resizeMode="contain" 
-            />
+            />*/}
+            
+              <Text style={[{ color: colors.text, fontSize:18 }]}>Queres anunciar aqui?</Text>
           </TouchableOpacity>
         )}
       </View>

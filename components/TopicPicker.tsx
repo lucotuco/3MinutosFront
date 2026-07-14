@@ -45,7 +45,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
   const [selected, setSelected] = useState<string[]>(value);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
-  const [placeholderText, setPlaceholderText] = useState("Ej. Boca Juniors");
+  const [placeholderText, setPlaceholderText] = useState("Ej: Messi");
   
   const scrollViewRef = useRef<ScrollView>(null);
   const freeTextInputRef = useRef<TextInput>(null);
@@ -54,7 +54,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
     if (visible) {
       setSelected(value);
       setFreeText("");
-      setPlaceholderText("Ej. Boca Juniors");
+      setPlaceholderText("Ej: Messi");
     }
   }, [visible, value]);
 
@@ -75,7 +75,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
   const handleOtroPress = useCallback(async (cat: string) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    const placeholder = CATEGORY_PLACEHOLDERS[cat] || "Ej. Boca Juniors";
+    const placeholder = CATEGORY_PLACEHOLDERS[cat] || "Ej: Messi";
     setPlaceholderText(placeholder);
     
     // Primero hacemos foco para que empiece a subir el teclado
@@ -113,7 +113,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
     >
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <View style={s.modalOverlay}>
           {/* Fondo oscuro clickeable para cerrar el modal */}
@@ -144,7 +144,7 @@ export function TopicPicker({ visible, value, onClose, onConfirm }: Props) {
             <ScrollView
               ref={scrollViewRef}
               style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: 24 }}
+              contentContainerStyle={{ paddingBottom: 40 }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >

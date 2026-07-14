@@ -37,16 +37,6 @@ export default function OnboardingScreen() {
 
   const deliveryTime = `${selectedHour}:${selectedMinute}`;
 
-  const updateTopic = (index: number, value: string) => {
-    const next: [string, string, string] = [...topics] as [
-      string,
-      string,
-      string
-    ];
-    next[index] = value;
-    setTopics(next);
-  };
-
   const validate = () => {
     const cleanName = name.trim();
     const cleanTopics = topics.map((topic) => topic.trim());
@@ -81,33 +71,24 @@ export default function OnboardingScreen() {
 
   const confirmTimeSelection = async (nextValue: string) => {
     const [h, m] = nextValue.split(":");
-
     setSelectedHour(h || "08");
     setSelectedMinute(m || "00");
     setTimeModalVisible(false);
-
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
   };
 
   const handleSubmit = async () => {
     const error = validate();
-
     if (error) {
-      Alert.alert("Datos incompletos", error);
+      Alert.alert("Faltan datos", error);
       return;
     }
 
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch {}
-
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setLoading(true);
 
     try {
       await clearSession();
-
       const result = await api.createPreferences({
         name: name.trim(),
         topics: [topics[0].trim(), topics[1].trim(), topics[2].trim()],
@@ -142,88 +123,97 @@ export default function OnboardingScreen() {
           contentContainerStyle={[
             s.scroll,
             {
-              paddingTop: insets.top + 36,
+              paddingTop: insets.top + 24,
               paddingBottom: insets.bottom + 36,
             },
           ]}
         >
+          {/* HEADER */}
           <View style={s.header}>
-            <View
-              style={[
-                s.logoCircle,
-                {
-                  backgroundColor: colors.primary,
-                },
-              ]}
-            >
+            <View style={[s.logoCircle, { backgroundColor: colors.primary }]}>
               <Feather name="zap" size={28} color="#fff" />
             </View>
-
             <Text style={[s.appName, { color: colors.text }]}>3 Minutos</Text>
-
             <Text style={[s.subtitle, { color: colors.mutedText }]}>
-              Tu resumen de noticias personalizado
+              Configurá tu resumen diario en 3 pasos
             </Text>
           </View>
 
-          <View style={s.section}>
-            <Text style={[s.sectionTitle, { color: colors.text }]}>
-              Tu perfil
-            </Text>
-
-            <Text style={[s.label, { color: colors.text }]}>Nombre</Text>
-
+          {/* PASO 1: NOMBRE */}
+          <View style={[s.stepCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={s.stepHeader}>
+              <View style={[s.stepNumber, { backgroundColor: colors.primary }]}>
+                <Text style={s.stepNumberTxt}>1</Text>
+              </View>
+              <Text style={[s.stepTitle, { color: colors.text }]}>¿Cómo te llamás?</Text>
+            </View>
             <TextInput
               value={name}
               onChangeText={setName}
-              placeholder="Ej: Mateo"
+              placeholder="Ej: San Martín"
               placeholderTextColor={colors.mutedText}
               style={[
                 s.input,
                 {
                   borderColor: colors.border,
                   color: colors.text,
-                  backgroundColor: colors.card,
+                  backgroundColor: colors.background,
                 },
               ]}
               autoCapitalize="words"
               maxLength={60}
             />
+          </View>
 
-           <Text style={[s.label, { color: colors.text }]}>
-  Tus 3 tópicos de interés
-</Text>
+          {/* PASO 2: TÓPICOS */}
+          <View style={[s.stepCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={s.stepHeader}>
+              <View style={[s.stepNumber, { backgroundColor: colors.primary }]}>
+                <Text style={s.stepNumberTxt}>2</Text>
+              </View>
+              <Text style={[s.stepTitle, { color: colors.text }]}>Elegí tus temas</Text>
+            </View>
+            
+            <Text style={[s.stepDesc, { color: colors.mutedText }]}>
+              Tocá el botón abajo y seleccioná exactamente 3 categorías sobre las que querés recibir noticias.
+            </Text>
 
-{topics.filter((t) => t.trim()).length > 0 ? (
-  <View style={s.chipsWrap}>
-    {topics.filter((t) => t.trim()).map((topic) => (
-      <View
-        key={topic}
-        style={[s.chip, { backgroundColor: colors.primary + "22", borderColor: colors.primary }]}
-      >
-        <Text style={[s.chipText, { color: colors.primary }]}>{topic}</Text>
-      </View>
-    ))}
-  </View>
-) : (
-  <Text style={[s.hint, { color: colors.mutedText }]}>
-    Elegí exactamente 3 temas que te interesan
-  </Text>
-)}
+            {topics.filter((t) => t.trim()).length > 0 && (
+              <View style={s.chipsWrap}>
+                {topics.filter((t) => t.trim()).map((topic) => (
+                  <View
+                    key={topic}
+                    style={[s.chip, { backgroundColor: colors.primary + "22", borderColor: colors.primary }]}
+                  >
+                    <Text style={[s.chipText, { color: colors.primary }]}>{topic}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
 
-<TouchableOpacity
-  activeOpacity={0.85}
-  onPress={() => setTopicPickerVisible(true)}
-  style={[s.pickerBtn, { backgroundColor: colors.primary }]}
->
-  <Feather name="sliders" size={16} color="#fff" />
-  <Text style={s.pickerBtnText}>
-    {topics.filter((t) => t.trim()).length === 3 ? "Cambiar Tópicos" : "Elegí Tópicos"}
-  </Text>
-</TouchableOpacity>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setTopicPickerVisible(true)}
+              style={[s.pickerBtn, { backgroundColor: colors.primary }]}
+            >
+              <Feather name="sliders" size={16} color="#fff" />
+              <Text style={s.pickerBtnText}>
+                {topics.filter((t) => t.trim()).length === 3 ? "Modificar selección" : "Elegir Categorías"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-            <Text style={[s.label, { color: colors.text }]}>
-              Horario de entrega
+          {/* PASO 3: HORARIO */}
+          <View style={[s.stepCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
+            <View style={s.stepHeader}>
+              <View style={[s.stepNumber, { backgroundColor: colors.primary }]}>
+                <Text style={s.stepNumberTxt}>3</Text>
+              </View>
+              <Text style={[s.stepTitle, { color: colors.text }]}>Horario de entrega</Text>
+            </View>
+            
+            <Text style={[s.stepDesc, { color: colors.mutedText }]}>
+              ¿A qué hora querés que la IA te envíe tu resumen todos los días?
             </Text>
 
             <TouchableOpacity
@@ -233,52 +223,22 @@ export default function OnboardingScreen() {
                 s.timeRowButton,
                 {
                   borderColor: colors.border,
-                  backgroundColor: colors.card,
+                  backgroundColor: colors.background,
                 },
               ]}
             >
               <View style={s.timeRowLeft}>
-                <View
-                  style={[
-                    s.timeIconWrap,
-                    {
-                      backgroundColor: colors.primary,
-                    },
-                  ]}
-                >
-                  <Feather name="clock" size={18} color="#fff" />
-                </View>
-
-                <View>
-                  <Text style={[s.timeRowTitle, { color: colors.text }]}>
-                    Hora de entrega
-                  </Text>
-                  <Text
-                    style={[
-                      s.timeRowSubtitle,
-                      {
-                        color: colors.mutedText,
-                      },
-                    ]}
-                  >
-                    Toca para cambiarla
-                  </Text>
-                </View>
+                <Feather name="clock" size={20} color={colors.primary} />
+                <Text style={[s.timeRowTitle, { color: colors.text }]}>Hora del Digest</Text>
               </View>
-
               <View style={s.timeRowRight}>
-                <Text style={[s.timeRowValue, { color: colors.text }]}>
-                  {deliveryTime}
-                </Text>
-                <Feather
-                  name="chevron-right"
-                  size={18}
-                  color={colors.mutedText}
-                />
+                <Text style={[s.timeRowValue, { color: colors.text }]}>{deliveryTime}</Text>
+                <Feather name="chevron-right" size={18} color={colors.mutedText} />
               </View>
             </TouchableOpacity>
           </View>
 
+          {/* BOTÓN FINAL */}
           <TouchableOpacity
             activeOpacity={0.85}
             disabled={loading}
@@ -293,20 +253,21 @@ export default function OnboardingScreen() {
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={s.submitText}>Comenzar</Text>
+              <Text style={s.submitText}>Crear mi Perfil</Text>
             )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
-<TopicPicker
-  visible={topicPickerVisible}
-  value={topics.filter((t) => t.trim())}
-  onClose={() => setTopicPickerVisible(false)}
-  onConfirm={(newTopics) => {
-    setTopics([newTopics[0] ?? "", newTopics[1] ?? "", newTopics[2] ?? ""]);
-    setTopicPickerVisible(false);
-  }}
-/>
+
+      <TopicPicker
+        visible={topicPickerVisible}
+        value={topics.filter((t) => t.trim())}
+        onClose={() => setTopicPickerVisible(false)}
+        onConfirm={(newTopics) => {
+          setTopics([newTopics[0] ?? "", newTopics[1] ?? "", newTopics[2] ?? ""]);
+          setTopicPickerVisible(false);
+        }}
+      />
       <TimePickerField
         visible={timeModalVisible}
         value={deliveryTime}
@@ -319,144 +280,64 @@ export default function OnboardingScreen() {
 
 const makeStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
-    chipsWrap: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  gap: 8,
-  marginBottom: 12,
-},
-chip: {
-  borderWidth: 1,
-  borderRadius: 20,
-  paddingHorizontal: 12,
-  paddingVertical: 6,
-},
-chipText: {
-  fontSize: 13,
-  fontFamily: "Inter_600SemiBold",
-},
-pickerBtn: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  borderRadius: 14,
-  paddingVertical: 14,
-  marginBottom: 10,
-},
-pickerBtnText: {
-  color: "#fff",
-  fontSize: 15,
-  fontFamily: "Inter_700Bold",
-},
+    root: { flex: 1 },
+    scroll: { paddingHorizontal: 20 },
+    header: { alignItems: "center", justifyContent: "center", marginBottom: 24 },
+    logoCircle: { width: 52, height: 52, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+    appName: { fontSize: 24, fontFamily: "Inter_700Bold", marginBottom: 4 },
+    subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center" },
 
-    root: {
-      flex: 1,
-    },
-    scroll: {
-      paddingHorizontal: 24,
-    },
-    header: {
-      alignItems: "center",
-      marginBottom: 32,
-      gap: 8,
-    },
-    logoCircle: {
-      width: 64,
-      height: 64,
+    stepCard: {
+      borderWidth: 1,
       borderRadius: 20,
-      alignItems: "center",
-      justifyContent: "center",
+      padding: 16,
+      marginBottom: 16,
     },
-    appName: {
-      fontSize: 28,
-      fontFamily: "Inter_700Bold",
-    },
-    subtitle: {
-      fontSize: 15,
-      fontFamily: "Inter_400Regular",
-      textAlign: "center",
-    },
-    section: {
-      marginBottom: 28,
-    },
-    sectionTitle: {
-      fontSize: 18,
-      fontFamily: "Inter_700Bold",
-      marginBottom: 14,
-    },
-    label: {
-      fontSize: 13,
-      fontFamily: "Inter_500Medium",
-      marginBottom: 6,
-      marginTop: 12,
-    },
-    hint: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      marginBottom: 8,
-      marginTop: -4,
-    },
-    input: {
-      borderWidth: 1,
-      borderRadius: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 13,
-      fontSize: 15,
-      fontFamily: "Inter_400Regular",
-      marginBottom: 10,
-    },
-    timeRowButton: {
-      borderWidth: 1,
-      borderRadius: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 14,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: 12,
-    },
-    timeRowLeft: {
+    stepHeader: {
       flexDirection: "row",
       alignItems: "center",
       gap: 12,
-      flex: 1,
+      marginBottom: 12,
     },
-    timeIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 999,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    timeRowTitle: {
-      fontSize: 15,
-      fontFamily: "Inter_600SemiBold",
-    },
-    timeRowSubtitle: {
-      fontSize: 12,
-      fontFamily: "Inter_400Regular",
-      marginTop: 2,
-    },
-    timeRowRight: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-    },
-    timeRowValue: {
-      fontSize: 16,
-      fontFamily: "Inter_700Bold",
-      letterSpacing: 0.3,
-    },
-    submitBtn: {
+    stepNumber: {
+      width: 28,
+      height: 28,
       borderRadius: 14,
-      paddingVertical: 16,
       alignItems: "center",
-      marginTop: 8,
+      justifyContent: "center",
     },
-    submitText: {
+    stepNumberTxt: {
       color: "#fff",
+      fontSize: 14,
+      fontFamily: "Inter_700Bold",
+    },
+    stepTitle: {
       fontSize: 17,
       fontFamily: "Inter_700Bold",
     },
+    stepDesc: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 18,
+      marginBottom: 14,
+      marginTop: -4,
+    },
+
+    input: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, fontFamily: "Inter_500Medium" },
+    
+    chipsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+    chip: { borderWidth: 1, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+    chipText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+    
+    pickerBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 14 },
+    pickerBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_700Bold" },
+    
+    timeRowButton: { borderWidth: 1, borderRadius: 14, paddingHorizontal: 14, paddingVertical: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    timeRowLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
+    timeRowTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    timeRowRight: { flexDirection: "row", alignItems: "center", gap: 6 },
+    timeRowValue: { fontSize: 16, fontFamily: "Inter_700Bold", letterSpacing: 0.3 },
+    
+    submitBtn: { borderRadius: 16, paddingVertical: 16, alignItems: "center", marginTop: 8, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+    submitText: { color: "#fff", fontSize: 17, fontFamily: "Inter_700Bold" },
   });

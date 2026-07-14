@@ -17,7 +17,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Modal,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DailyAgendaStrip } from "@/components/DailyAgendaStrip";
@@ -37,10 +39,10 @@ type WeatherState = {
   icon: keyof typeof Feather.glyphMap;
   loading: boolean;
 };
- const handlePress = () => {
-   
-    Linking.openURL('https://www.bancodecomercio.com.ar/home');
-  };
+const handlePress = () => {
+
+  Linking.openURL('https://www.bancodecomercio.com.ar/home');
+};
 
 function formatTodayLabel() {
   const today = new Date();
@@ -53,13 +55,17 @@ function formatTodayLabel() {
 }
 
 function getCityFromAddress(address: Location.LocationGeocodedAddress) {
-  return (
-    address.city ||
-    address.subregion ||
-    address.region ||
-    address.district ||
-    "tu zona"
-  );
+  const isValidName = (name?: string | null) => name && name.length > 3;
+
+  if (address.city === "CABA" || address.region === "CABA" || address.subregion === "CABA") {
+    return "CABA";
+  }
+  if (isValidName(address.city)) return address.city;
+  if (isValidName(address.district)) return address.district;
+  if (isValidName(address.subregion)) return address.subregion;
+  if (isValidName(address.region)) return address.region;
+
+  return "tu zona";
 }
 
 // Mapeamos los códigos WMO de Open-Meteo a íconos de Feather
@@ -292,6 +298,7 @@ export default function DigestScreen() {
   const [playing, setPlaying] = useState(false);
   const queryClient = useQueryClient();
   const posthog = usePostHog();
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
@@ -331,6 +338,37 @@ export default function DigestScreen() {
 
     configureAudio();
   }, []);
+
+  useEffect(() => {
+    const checkTutorial = async () => {
+      try {
+        // Buscamos si la bandera existe en el almacenamiento local
+        const visto = await AsyncStorage.getItem("home_tutorial_visto");
+        if (!visto) {
+          // Si nunca lo vio, encendemos el Modal flotante
+          setShowTutorial(true);
+        }
+      } catch (err) {
+        console.log("Error leyendo tutorial cache", err);
+      }
+    };
+
+    // Solo mostramos el tutorial cuando las noticias ya terminaron de cargar
+    if (!isLoading && data?.digest?.items?.length) {
+      checkTutorial();
+    }
+  }, [isLoading, data]);
+
+  const closeTutorialModal = async () => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // Guardamos la marca en memoria para que no vuelva a molestar jamás
+      await AsyncStorage.setItem("home_tutorial_visto", "true");
+      setShowTutorial(false);
+    } catch (err) {
+      setShowTutorial(false);
+    }
+  };
 
   useEffect(() => {
     if (sound) {
@@ -401,13 +439,13 @@ export default function DigestScreen() {
       .markDigestShown(userId, {
         items: data.digest.items,
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [userId, data]);
 
   useEffect(() => {
     return () => {
       if (sound) {
-        sound.unloadAsync().catch(() => {});
+        sound.unloadAsync().catch(() => { });
       }
     };
   }, [sound]);
@@ -420,7 +458,7 @@ export default function DigestScreen() {
 
   useEffect(() => {
     if (!isLoading && !refreshing) return;
-    
+
     const phrases = [
       "Analizando tus Categorias...",
       "Buscando las mejores noticias...",
@@ -429,7 +467,7 @@ export default function DigestScreen() {
       "Afinando últimos detalles..."
     ];
     let i = 0;
-    
+
     const interval = setInterval(() => {
       i = (i + 1) % phrases.length;
       setLoadingText(phrases[i]);
@@ -458,7 +496,7 @@ export default function DigestScreen() {
       setLoadingAudio(true);
       posthog.capture('audio_play_clicked', { state: 'new_generation' });
       const res = await api.playDigest(userId);
-      
+
       if (!res.success || !res.playlist || res.playlist.length === 0) {
         setLoadingAudio(false);
         Alert.alert("Error", "No pudimos preparar tu playlist de audio.");
@@ -530,15 +568,15 @@ export default function DigestScreen() {
         // Monitoreamos cuándo termina el track actual
         activeSound.setOnPlaybackStatusUpdate(async (status) => {
           if (!status.isLoaded) return;
-          
+
           if (status.didJustFinish) {
             // Limpiamos el audio viejo de la memoria
-            await activeSound.unloadAsync().catch(() => {});
-            
+            await activeSound.unloadAsync().catch(() => { });
+
             // Saltamos al siguiente pasándole el objeto que YA está descargado
             currentTrackIndex++;
             if (currentTrackIndex >= playlist.length) {
-                posthog.capture('audio_completed');
+              posthog.capture('audio_completed');
             }
             playTrack(currentTrackIndex, loadedNextSound);
           }
@@ -564,8 +602,8 @@ export default function DigestScreen() {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       if (sound) {
-        await sound.stopAsync().catch(() => {});
-        await sound.unloadAsync().catch(() => {});
+        await sound.stopAsync().catch(() => { });
+        await sound.unloadAsync().catch(() => { });
         setSound(null);
         setPlaying(false);
       }
@@ -597,8 +635,8 @@ export default function DigestScreen() {
 
   const todayLabel = formatTodayLabel();
 
-  
-  
+
+
   // Usamos usedFallback que envía el backend
   const hasFallbackItems = data?.digest?.items?.some(
     (item) => item.usedFallback
@@ -608,7 +646,7 @@ export default function DigestScreen() {
       posthog.capture('fallback_shown');
     }
   }, [hasFallbackItems, posthog]);
-  
+
 
   return (
     <View style={[s.root, { backgroundColor: colors.background }]}>
@@ -628,13 +666,13 @@ export default function DigestScreen() {
               },
             ]}
           >
-          <TouchableOpacity onPress={handlePress}>
-            <Image
-              source={sponsorLogo}
-              style={s.sponsorLogoInline}
-              resizeMode="contain"
-              
-            />
+            <TouchableOpacity onPress={handlePress}>
+              {/*<Image
+                source={sponsorLogo}
+                style={s.sponsorLogoInline}
+                resizeMode="contain"
+              />*/}
+              <Text style={[{ color: colors.text, fontSize:18 }]}>Queres anunciar aqui?</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -656,22 +694,22 @@ export default function DigestScreen() {
         }
         onScroll={({ nativeEvent }) => {
           // Detectar si llegó cerca del final (al 90% del scroll)
-          const isCloseToBottom = 
+          const isCloseToBottom =
             nativeEvent.layoutMeasurement.height + nativeEvent.contentOffset.y >=
             nativeEvent.contentSize.height - 50;
-            
+
           if (isCloseToBottom) {
-             // Un pequeño truco para dispararlo solo una vez
-             if (!lastMarkedKeyRef.current?.includes("completed")) {
-                 posthog.capture('digest_completed');
-                 // Marcamos que ya se disparó
-                 lastMarkedKeyRef.current = (lastMarkedKeyRef.current || "") + "_completed";
-             }
+            // Un pequeño truco para dispararlo solo una vez
+            if (!lastMarkedKeyRef.current?.includes("completed")) {
+              posthog.capture('digest_completed');
+              // Marcamos que ya se disparó
+              lastMarkedKeyRef.current = (lastMarkedKeyRef.current || "") + "_completed";
+            }
           }
         }}
         scrollEventThrottle={400} // Para que no llame a la función mil veces por segundo
       >
-       <DailyAgendaStrip
+        <DailyAgendaStrip
           todayLabel={todayLabel}
           weatherLabel={weather.label}
           weatherIcon={weather.icon}
@@ -681,10 +719,10 @@ export default function DigestScreen() {
         {(isLoading || refreshing) && (
           <View style={{ alignItems: 'center', marginTop: 10, marginBottom: 20 }}>
             <DigestLoadingState />
-            <Text style={{ 
-              marginTop: 16, 
-              fontSize: 15, 
-              fontWeight: "600", 
+            <Text style={{
+              marginTop: 16,
+              fontSize: 15,
+              fontWeight: "600",
               color: colors.primary,
               textAlign: "center"
             }}>
@@ -751,7 +789,7 @@ export default function DigestScreen() {
 
               {/* 🎧 MÓDULO UNIFICADO: AUDIO + EFEMÉRIDE */}
               <View style={[s.unifiedCard, { borderColor: colors.border, backgroundColor: colors.card }]}>
-                
+
                 {/* 1. SECCIÓN PRINCIPAL: BOTÓN DE AUDIO (Destacado) */}
                 <TouchableOpacity
                   activeOpacity={0.85}
@@ -797,6 +835,73 @@ export default function DigestScreen() {
             </>
           )}
       </ScrollView>
+      <Modal
+        visible={showTutorial}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeTutorialModal}
+      >
+        <View style={s.modalOverlay}>
+          <View style={[s.tutorialCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            
+            <View style={s.tutorialHeader}>
+              <View style={[s.tutorialIconRing, { backgroundColor: colors.primary }]}>
+                <Feather name="compass" size={20} color="#fff" />
+              </View>
+              <Text style={[s.tutorialMainTitle, { color: colors.text }]}>¡Ya tenés tu resumen listo!</Text>
+            </View>
+
+            <Text style={[s.tutorialLabel, { color: colors.mutedText }]}>
+              Te dejamos 4 tips rápidos para sacarle el jugo a la app:
+            </Text>
+
+            {/* Tip 1: Audio */}
+            <View style={s.tutorialRow}>
+              <Feather name="play" size={16} color={colors.primary} style={{ marginTop: 3 }} />
+              <View style={s.tutorialRowTexts}>
+                <Text style={[s.tipTitle, { color: colors.text }]}>Escuchá sin baches</Text>
+                <Text style={[s.tipDesc, { color: colors.mutedText }]}>Tocá el botón inferior para generar un audio de todas tus noticias.</Text>
+              </View>
+            </View>
+
+            {/* Tip 2: Refresh */}
+            <View style={s.tutorialRow}>
+              <Feather name="refresh-cw" size={16} color={colors.primary} style={{ marginTop: 3 }} />
+              <View style={s.tutorialRowTexts}>
+                <Text style={[s.tipTitle, { color: colors.text }]}>¿Querés más? Deslizá</Text>
+                <Text style={[s.tipDesc, { color: colors.mutedText }]}>Haciendo "Refresh" (arrastrando hacia abajo) te traemos 3 noticias frescas.</Text>
+              </View>
+            </View>
+
+            {/* Tip 3: Historial */}
+            <View style={s.tutorialRow}>
+              <Feather name="clock" size={16} color={colors.primary} style={{ marginTop: 3 }} />
+              <View style={s.tutorialRowTexts}>
+                <Text style={[s.tipTitle, { color: colors.text }]}>Revisá tu Historial</Text>
+                <Text style={[s.tipDesc, { color: colors.mutedText }]}>En la pestaña de abajo podés volver a ver todos los artículos que fuiste leyendo en días anteriores.</Text>
+              </View>
+            </View>
+
+            {/* Tip 4: Perfil */}
+            <View style={s.tutorialRow}>
+              <Feather name="user" size={16} color={colors.primary} style={{ marginTop: 3 }} />
+              <View style={s.tutorialRowTexts}>
+                <Text style={[s.tipTitle, { color: colors.text }]}>Ajustá tu Perfil</Text>
+                <Text style={[s.tipDesc, { color: colors.mutedText }]}>Si cambias de opinión, desde Ajustes podés modificar tus 3 categorías o la hora en que llega la notificación.</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={[s.tutorialBtn, { backgroundColor: colors.primary }]}
+              onPress={closeTutorialModal}
+              activeOpacity={0.85}
+            >
+              <Text style={s.tutorialBtnTxt}>Entendido, empezar</Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -847,12 +952,10 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       width: 158,
       height: 43,
     },
-
     scroll: {
       paddingHorizontal: 18,
       paddingTop: 0,
     },
-
     loadingCard: {
       marginTop: 6,
       marginBottom: 12,
@@ -862,7 +965,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       paddingVertical: 22,
       alignItems: "center",
     },
-
     loadingIconCircle: {
       width: 62,
       height: 62,
@@ -871,7 +973,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       justifyContent: "center",
       marginBottom: 14,
     },
-
     loadingTitle: {
       fontSize: 18,
       lineHeight: 23,
@@ -879,7 +980,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       textAlign: "center",
       marginBottom: 7,
     },
-
     loadingSubtitle: {
       fontSize: 13,
       lineHeight: 19,
@@ -887,20 +987,17 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       textAlign: "center",
       marginBottom: 15,
     },
-
     dotsRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
       gap: 8,
     },
-
     dot: {
       width: 8,
       height: 8,
       borderRadius: 4,
     },
-
     fallbackBanner: {
       flexDirection: "row",
       alignItems: "center",
@@ -911,7 +1008,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       paddingVertical: 12,
       marginBottom: 10,
     },
-
     fallbackIconCircle: {
       width: 36,
       height: 36,
@@ -919,14 +1015,12 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       justifyContent: "center",
     },
-
     fallbackText: {
       flex: 1,
       fontSize: 12.5,
       lineHeight: 18,
       fontFamily: "Inter_500Medium",
     },
-
     listenButton: {
       marginTop: 0,
       marginBottom: 8,
@@ -938,7 +1032,6 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       gap: 10,
     },
-
     playCircle: {
       width: 36,
       height: 36,
@@ -946,16 +1039,10 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: "center",
       justifyContent: "center",
     },
-
-    listenTextWrap: {
-      flex: 1,
-    },
-
     listenTitle: {
       fontSize: 15,
       fontFamily: "Inter_700Bold",
     },
-
     listenSub: {
       marginTop: 1,
       fontSize: 11,
@@ -1054,5 +1141,71 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 14,
       fontWeight: "400",
       lineHeight: 20,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.65)",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 24,
+    },
+    tutorialCard: {
+      width: "100%",
+      maxWidth: 400,
+      borderWidth: 1,
+      borderRadius: 24,
+      padding: 22,
+      gap: 16,
+    },
+    tutorialHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 12,
+    },
+    tutorialIconRing: {
+      width: 36,
+      height: 36,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    tutorialMainTitle: {
+      fontSize: 18,
+      fontFamily: "Inter_700Bold",
+    },
+    tutorialLabel: {
+      fontSize: 14,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 20,
+    },
+    tutorialRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 12,
+    },
+    tutorialRowTexts: {
+      flex: 1,
+    },
+    tipTitle: {
+      fontSize: 14,
+      fontFamily: "Inter_700Bold",
+      marginBottom: 2,
+    },
+    tipDesc: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 18,
+    },
+    tutorialBtn: {
+      borderRadius: 14,
+      paddingVertical: 14,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 6,
+    },
+    tutorialBtnTxt: {
+      color: "#fff",
+      fontSize: 15,
+      fontFamily: "Inter_700Bold",
     },
   });
