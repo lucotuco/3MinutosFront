@@ -14,6 +14,7 @@ import {
     TouchableOpacity,
     View,
     Linking,
+    TextInput,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -48,6 +49,7 @@ export default function ProfileScreen() {
   const [isActive, setIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const deliveryTime = useMemo(
     () => `${selectedHour}:${selectedMinute}`,
@@ -80,7 +82,7 @@ export default function ProfileScreen() {
 
   const markDirty = () => setIsDirty(true);
 
-  const handleSave = async () => {
+ const handleSave = async () => {
     if (!userId) return;
     if (!name.trim() || topics.filter((t) => t.trim()).length < 3) {
       Alert.alert("Campos requeridos", "Nombre y 3 tópicos son obligatorios.");
@@ -91,16 +93,36 @@ export default function ProfileScreen() {
     setSaving(true);
 
     try {
+      const nameChanged = name.trim() !== (data?.name ?? "").trim();
+      const topicsChanged = JSON.stringify(topics.map(t => t.trim())) !== JSON.stringify(data?.topics ?? []);
+
       await api.updatePreferences(userId, {
         name: name.trim(),
         topics: [topics[0].trim(), topics[1].trim(), topics[2].trim()] as [string, string, string],
         deliveryTime,
         isActive,
       });
+
+      if (nameChanged || topicsChanged) {
+        try {
+          await api.refreshDigest(userId);
+          if (nameChanged) {
+            api.playDigest(userId).catch(() => {});
+          }
+        } catch (err) {
+          console.log("Error al refrescar digest tras cambiar perfil:", err);
+        }
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["preferences", userId] });
       await queryClient.invalidateQueries({ queryKey: ["digest", userId] });
       setIsDirty(false);
-      Alert.alert("Guardado", "Tus preferencias han sido actualizadas.");
+      
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setSaveSuccess(false);
+      }, 2000);
+
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "Error desconocido";
       Alert.alert("Error", msg);
@@ -156,15 +178,23 @@ export default function ProfileScreen() {
       >
         <View style={[s.header, { paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
           <Text style={[s.title, { color: colors.foreground }]}>Perfil</Text>
-          {isDirty && (
+          {(isDirty || saveSuccess) && (
             <TouchableOpacity
-              style={[s.saveBtn, { backgroundColor: colors.primary }]}
+              style={[
+                s.saveBtn,
+                { backgroundColor: saveSuccess ? "#22C55E" : colors.primary },
+              ]}
               onPress={handleSave}
-              disabled={saving}
+              disabled={saving || saveSuccess}
               activeOpacity={0.8}
             >
               {saving ? (
                 <ActivityIndicator size="small" color="#fff" />
+              ) : saveSuccess ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Feather name="check" size={14} color="#fff" />
+                  <Text style={s.saveTxt}>Guardado</Text>
+                </View>
               ) : (
                 <Text style={s.saveTxt}>Guardar</Text>
               )}
@@ -188,12 +218,18 @@ export default function ProfileScreen() {
                 style={[s.inputWrap, { backgroundColor: colors.card, borderColor: colors.border }]}
               >
                 <Feather name="user" size={16} color={colors.mutedForeground} />
-                <Text
-                  style={[s.inputText, { color: name ? colors.foreground : colors.mutedForeground }]}
-                  onPress={() => {}}
-                >
-                  {name || "Tu nombre"}
-                </Text>
+                <TextInput
+                  value={name}
+                  onChangeText={(text) => {
+                    setName(text);
+                    markDirty();
+                  }}
+                  placeholder="Tu nombre"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={[s.inputText, { color: colors.foreground }]}
+                  autoCapitalize="words"
+                  maxLength={60}
+                />
               </View>
             </View>
 

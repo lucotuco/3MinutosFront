@@ -33,6 +33,7 @@ import { api } from "@/services/api";
 import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { getTodayEfemeride } from "@/constants/efemerides";
 import { useQueryClient } from "@tanstack/react-query";
+import { CustomAlertModal } from "@/components/CustomAlertModal";
 
 type WeatherState = {
   label: string;
@@ -300,6 +301,18 @@ export default function DigestScreen() {
   const posthog = usePostHog();
   const [showTutorial, setShowTutorial] = useState(false);
 
+  const [alertConfig, setAlertConfig] = useState<{
+      visible: boolean;
+      title: string;
+      message: string;
+      icon?: "clock" | "alert-circle" | "wifi-off";
+    }>({
+      visible: false,
+      title: "",
+      message: "",
+      icon: "clock",
+    });
+
   const [weather, setWeather] = useState<WeatherState>({
     label: "",
     icon: "cloud",
@@ -380,7 +393,7 @@ export default function DigestScreen() {
         })
         .catch((err) => console.log("Error descargando audio en refresh:", err));
     }
-  }, [data?.digest?.items]);
+  }, [data?.digest?.items, data?.user?.name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -610,13 +623,20 @@ export default function DigestScreen() {
       await api.refreshDigest(userId);
       await refetch();
       await queryClient.invalidateQueries({ queryKey: ["shown-articles", userId] });
-    } catch (error) {
+   } catch (error) {
       const message =
         error instanceof Error
           ? error.message
           : "No pudimos generar un nuevo resumen.";
 
-      Alert.alert("No se pudo generar un nuevo resumen", message);
+      const isCooldown = message.toLowerCase().includes("espera") || message.toLowerCase().includes("minuto") || message.toLowerCase().includes("cooldown");
+
+      setAlertConfig({
+        visible: true,
+        title: isCooldown ? "Espera uno minuto" : "No se pudo actualizar",
+        message: message,
+        icon: isCooldown ? "clock" : "alert-circle",
+      });
     } finally {
       setRefreshing(false);
     }
@@ -902,6 +922,13 @@ export default function DigestScreen() {
           </View>
         </View>
       </Modal>
+      <CustomAlertModal
+        visible={alertConfig.visible}
+        title={alertConfig.title}
+        message={alertConfig.message}
+        icon={alertConfig.icon}
+        onClose={() => setAlertConfig((prev) => ({ ...prev, visible: false }))}
+      />
     </View>
   );
 }
