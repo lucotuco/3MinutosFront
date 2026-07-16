@@ -150,7 +150,7 @@ export function DigestCard({ item, index }: DigestCardProps) {
               resizeMode="contain" 
             />*/}
             
-              <Text style={[{ color: colors.text, fontSize:18 }]}>Queres anunciar aqui?</Text>
+              <Text style={[{ color: colors.text, fontSize:18,textAlign: "center", }]}>Queres anunciar aqui?</Text>
           </TouchableOpacity>
         )}
       </View>

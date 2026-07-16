@@ -21,7 +21,7 @@ function getProjectId() {
   );
 }
 
-export async function registerForPushNotificationsAsync() {
+export async function registerForPushNotificationsAsync(askPermission = true) {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("default", {
       name: "default",
@@ -38,17 +38,18 @@ export async function registerForPushNotificationsAsync() {
   const permsBefore = await Notifications.getPermissionsAsync();
   let finalStatus = permsBefore.status;
 
-  if (finalStatus !== "granted") {
+  // 👈 MAGIA: Solo disparamos el popup nativo si askPermission es true
+  if (finalStatus !== "granted" && askPermission) {
     const permsAfter = await Notifications.requestPermissionsAsync();
     finalStatus = permsAfter.status;
   }
 
+  // Si sigue sin haber permiso, devolvemos null en vez de romper la app
   if (finalStatus !== "granted") {
-    throw new Error("Permiso de notificaciones denegado.");
+    return null;
   }
 
   const projectId = getProjectId();
-
   if (!projectId) {
     throw new Error("No se encontró el projectId de EAS.");
   }
@@ -56,10 +57,6 @@ export async function registerForPushNotificationsAsync() {
   const tokenResponse = await Notifications.getExpoPushTokenAsync({
     projectId,
   });
-
-  if (isDev) {
-    console.log("[Push] token obtenido correctamente");
-  }
 
   return tokenResponse.data;
 }

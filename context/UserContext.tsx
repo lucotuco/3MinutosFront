@@ -84,14 +84,13 @@ export function UserProvider({ children }: Props) {
 
     const registerPush = async () => {
       try {
-        const expoPushToken = await registerForPushNotificationsAsync();
-        await api.updatePushToken(userId, expoPushToken);
-
-        if (isDev) {
-          console.log("[Push] token guardado en backend");
+        const expoPushToken = await registerForPushNotificationsAsync(false);
+        
+        if (expoPushToken) {
+          await api.updatePushToken(userId, expoPushToken);
         }
       } catch (err) {
-        if (isDev) {
+        if (__DEV__) {
           console.warn("[Push] no se pudo registrar el token", err);
         }
       }

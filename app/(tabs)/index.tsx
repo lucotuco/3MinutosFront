@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { usePostHog } from 'posthog-react-native';
-import * as Location from "expo-location";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -34,6 +33,9 @@ import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { getTodayEfemeride } from "@/constants/efemerides";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomAlertModal } from "@/components/CustomAlertModal";
+import * as Notifications from "expo-notifications";
+import { PushSoftPrompt } from "@/components/PushNotiPrompt";
+import { registerForPushNotificationsAsync } from "@/services/notifications";
 
 type WeatherState = {
   label: string;
@@ -55,20 +57,6 @@ function formatTodayLabel() {
   return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 }
 
-function getCityFromAddress(address: Location.LocationGeocodedAddress) {
-  const isValidName = (name?: string | null) => name && name.length > 3;
-
-  if (address.city === "CABA" || address.region === "CABA" || address.subregion === "CABA") {
-    return "CABA";
-  }
-  if (isValidName(address.city)) return address.city;
-  if (isValidName(address.district)) return address.district;
-  if (isValidName(address.subregion)) return address.subregion;
-  if (isValidName(address.region)) return address.region;
-
-  return "tu zona";
-}
-
 // Mapeamos los códigos WMO de Open-Meteo a íconos de Feather
 function getWeatherIcon(code: number): keyof typeof Feather.glyphMap {
   if (code === 0) return "sun"; // Despejado
@@ -83,65 +71,55 @@ function getWeatherIcon(code: number): keyof typeof Feather.glyphMap {
 }
 
 async function fetchCurrentWeather(): Promise<{ label: string; icon: keyof typeof Feather.glyphMap }> {
-  const permission = await Location.requestForegroundPermissionsAsync();
-
-  if (permission.status !== "granted") {
-    return { label: "", icon: "cloud" };
-  }
-
-  const position = await Location.getCurrentPositionAsync({
-    accuracy: Location.Accuracy.Balanced,
-  });
-
-  const { latitude, longitude } = position.coords;
-
-  // Agregamos weather_code a la URL
-  const weatherUrl =
-    `https://api.open-meteo.com/v1/forecast` +
-    `?latitude=${latitude}` +
-    `&longitude=${longitude}` +
-    `&current=temperature_2m,weather_code` +
-    `&timezone=auto`;
-
-  const response = await fetch(weatherUrl);
-
-  if (!response.ok) {
-    throw new Error(`Weather HTTP ${response.status}`);
-  }
-
-  const data = (await response.json()) as {
-    current?: {
-      temperature_2m?: number;
-      weather_code?: number;
-    };
-  };
-
-  const temperature = data.current?.temperature_2m;
-  const code = data.current?.weather_code ?? -1;
-
-  if (typeof temperature !== "number") {
-    return { label: "", icon: "cloud" };
-  }
-
-  let city = "tu zona";
-
   try {
-    const addresses = await Location.reverseGeocodeAsync({
-      latitude,
-      longitude,
-    });
 
-    if (addresses[0]) {
-      city = getCityFromAddress(addresses[0]);
+    const locationReq = await fetch("https://ipapi.co/json/");
+    const locationData = await locationReq.json();
+
+    const latitude = locationData.latitude;
+    const longitude = locationData.longitude;
+    const city = locationData.city || locationData.region || "tu zona";
+
+    if (!latitude || !longitude) {
+      return { label: "", icon: "cloud" };
     }
-  } catch {
-    city = "tu zona";
-  }
 
-  return {
-    label: `${Math.round(temperature)}° en ${city}`,
-    icon: getWeatherIcon(code),
-  };
+    // 2. Buscamos el clima con esas coordenadas en Open-Meteo
+    const weatherUrl =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${latitude}` +
+      `&longitude=${longitude}` +
+      `&current=temperature_2m,weather_code` +
+      `&timezone=auto`;
+
+    const response = await fetch(weatherUrl);
+
+    if (!response.ok) {
+      throw new Error(`Weather HTTP ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      current?: {
+        temperature_2m?: number;
+        weather_code?: number;
+      };
+    };
+
+    const temperature = data.current?.temperature_2m;
+    const code = data.current?.weather_code ?? -1;
+
+    if (typeof temperature !== "number") {
+      return { label: "", icon: "cloud" };
+    }
+
+    return {
+      label: `${Math.round(temperature)}° en ${city}`,
+      icon: getWeatherIcon(code),
+    };
+  } catch (error) {
+    console.log("Error buscando clima por IP:", error);
+    return { label: "", icon: "cloud" };
+  }
 }
 
 function DigestLoadingState() {
@@ -300,6 +278,7 @@ export default function DigestScreen() {
   const queryClient = useQueryClient();
   const posthog = usePostHog();
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showPushPrompt, setShowPushPrompt] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState<{
       visible: boolean;
@@ -333,6 +312,49 @@ export default function DigestScreen() {
       handleError(error);
     }
   }, [error, handleError]);
+
+  useEffect(() => {
+    async function checkShouldRepromptPush() {
+      try {
+        // A. Revisamos el sistema operativo: si ya las encendió ('granted') 
+        // o si las denegó en el cartel nativo de iOS/Android ('denied'), nos detenemos.
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status === "granted" || status === "denied") return; 
+
+        // B. Buscamos la fecha de la última vez que tocó "Quizás más adelante"
+        const lastDeclinedStr = await AsyncStorage.getItem("push_prompt_declined_date");
+        if (!lastDeclinedStr) return;
+
+        // C. Calculamos cuántos días pasaron desde ese último rechazo
+        const lastDeclinedDate = parseInt(lastDeclinedStr, 10);
+        const daysPassed = (Date.now() - lastDeclinedDate) / (1000 * 60 * 60 * 24);
+
+        // 👈 SI PASARON 7 DÍAS EXACTOS (O MÁS), MOSTRAMOS LA TARJETA
+        if (daysPassed >= 7) {
+          setShowPushPrompt(true);
+        }
+      } catch (error) {
+        console.log("Error chequeando reprompt de push:", error);
+      }
+    }
+
+    checkShouldRepromptPush();
+  }, []);
+
+  // 2. SI ACEPTA: Disparamos el cartel nativo de Apple/Android
+  const handleAcceptPushAgain = async () => {
+    setShowPushPrompt(false);
+    await registerForPushNotificationsAsync(true);
+    // Limpiamos la fecha porque el sistema operativo ya tomó el control del permiso
+    await AsyncStorage.removeItem("push_prompt_declined_date");
+  };
+
+  // 3. SI RECHAZA: ¡El secreto del bucle! Actualizamos la fecha a HOY
+  const handleDeclinePushAgain = async () => {
+    setShowPushPrompt(false);
+    // 👈 AL PISAR LA FECHA CON EL DÍA DE HOY, EL RELOJ DE 7 DÍAS VUELVE A EMPEZAR DESDE CERO
+    await AsyncStorage.setItem("push_prompt_declined_date", Date.now().toString());
+  };
 
   useEffect(() => {
     const configureAudio = async () => {
@@ -692,7 +714,7 @@ export default function DigestScreen() {
                 style={s.sponsorLogoInline}
                 resizeMode="contain"
               />*/}
-              <Text style={[{ color: colors.text, fontSize:18 }]}>Queres anunciar aqui?</Text>
+              <Text style={[{ color: colors.text, fontSize:18,textAlign: "center", }]}>Queres anunciar aqui?</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -928,6 +950,11 @@ export default function DigestScreen() {
         message={alertConfig.message}
         icon={alertConfig.icon}
         onClose={() => setAlertConfig((prev) => ({ ...prev, visible: false }))}
+      />
+      <PushSoftPrompt
+        visible={showPushPrompt}
+        onAccept={handleAcceptPushSecondTime}
+        onDecline={handleDeclinePushSecondTime}
       />
     </View>
   );

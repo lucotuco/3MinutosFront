@@ -20,6 +20,9 @@ import { TimePickerField } from "@/components/TimePickerField";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { api } from "@/services/api";
+import { PushSoftPrompt } from "@/components/PushNotiPrompt";
+import { registerForPushNotificationsAsync } from "@/services/notifications";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function OnboardingScreen() {
   const colors = useColors();
@@ -34,6 +37,7 @@ export default function OnboardingScreen() {
   const [timeModalVisible, setTimeModalVisible] = useState(false);
   const [isActive] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [pushPromptVisible, setPushPromptVisible] = useState(false);
 
   const deliveryTime = `${selectedHour}:${selectedMinute}`;
 
@@ -77,17 +81,29 @@ export default function OnboardingScreen() {
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
   };
 
-  const handleSubmit = async () => {
+  const handleNext = () => {
     const error = validate();
     if (error) {
       Alert.alert("Faltan datos", error);
       return;
     }
+    // Si todo está bien, mostramos el modal en vez de guardar directo
+    setPushPromptVisible(true);
+  };
 
+  const finalizeOnboarding = async (wantsPush: boolean) => {
+    setPushPromptVisible(false);
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setLoading(true);
 
     try {
+      if (wantsPush) {
+        await registerForPushNotificationsAsync(true);
+      } else {
+        // 👈 MAGIA: Si dijo que no, guardamos la fecha y hora actual en la memoria
+        await AsyncStorage.setItem("push_prompt_declined_date", Date.now().toString());
+      }
+
       await clearSession();
       const result = await api.createPreferences({
         name: name.trim(),
@@ -242,7 +258,7 @@ export default function OnboardingScreen() {
           <TouchableOpacity
             activeOpacity={0.85}
             disabled={loading}
-            onPress={handleSubmit}
+            onPress={handleNext}
             style={[
               s.submitBtn,
               {
@@ -273,6 +289,11 @@ export default function OnboardingScreen() {
         value={deliveryTime}
         onClose={closeTimeModal}
         onConfirm={confirmTimeSelection}
+      />
+      <PushSoftPrompt
+        visible={pushPromptVisible}
+        onAccept={() => finalizeOnboarding(true)}
+        onDecline={() => finalizeOnboarding(false)}
       />
     </>
   );
