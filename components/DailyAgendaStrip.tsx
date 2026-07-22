@@ -126,7 +126,7 @@ export function DailyAgendaStrip({ weatherLabel, weatherIcon = "cloud" }: Props)
         <View style={styles.headerRow}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
             <Feather name="calendar" size={14} color={colors.primary} />
-            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Próximos</Text>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]}>Tu calendario</Text>
           </View>
           {loading && <ActivityIndicator size="small" color={colors.primary} />}
         </View>
@@ -153,7 +153,7 @@ export function DailyAgendaStrip({ weatherLabel, weatherIcon = "cloud" }: Props)
             ) : (
               <View style={styles.eventsList}>
                 {/* 👈 CORTAMOS EN 3 EVENTOS EXACTOS */}
-                {events.slice(0, 3).map((event, idx) => {
+                {events.slice(0, 2).map((event, idx) => {
                   return (
                     <View key={event.id || idx} style={styles.eventRow}>
                       <Text style={[styles.eventTime, { color: colors.primary }]}>
@@ -169,7 +169,7 @@ export function DailyAgendaStrip({ weatherLabel, weatherIcon = "cloud" }: Props)
                 {/* Si hay más de 3 en la semana, muestra un indicador sutil */}
                 {events.length > 3 && (
                   <Text style={[styles.moreText, { color: colors.mutedForeground }]}>
-                    + {events.length - 3} más esta semana
+                    + {events.length - 2} más esta semana
                   </Text>
                 )}
               </View>
@@ -269,12 +269,14 @@ const styles = StyleSheet.create({
   eventTime: {
     fontSize: 11,
     fontFamily: "Inter_700Bold",
-    width: 62, // Ahora le damos más ancho para que entre "Hoy 14:30" o "Lun 10:00"
+    width: 72, 
+    flexShrink: 0,
   },
   eventTitle: {
     flex: 1,
     fontSize: 12,
     fontFamily: "Inter_400Regular",
+    marginRight: 4,
   },
   moreText: {
     fontSize: 10,

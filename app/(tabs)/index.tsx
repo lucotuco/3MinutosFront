@@ -36,6 +36,8 @@ import { CustomAlertModal } from "@/components/CustomAlertModal";
 import * as Notifications from "expo-notifications";
 import { PushSoftPrompt } from "@/components/PushNotiPrompt";
 import { registerForPushNotificationsAsync } from "@/services/notifications";
+import * as Network from "expo-network";
+import appLogo from "../../assets/images/icon.png";
 
 type WeatherState = {
   label: string;
@@ -72,19 +74,43 @@ function getWeatherIcon(code: number): keyof typeof Feather.glyphMap {
 
 async function fetchCurrentWeather(): Promise<{ label: string; icon: keyof typeof Feather.glyphMap }> {
   try {
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    let city = "tu zona";
 
-    const locationReq = await fetch("https://ipapi.co/json/");
-    const locationData = await locationReq.json();
+    const networkState = await Network.getNetworkStateAsync();
+    const isWiFi = networkState.type === Network.NetworkStateType.WIFI;
 
-    const latitude = locationData.latitude;
-    const longitude = locationData.longitude;
-    const city = locationData.city || locationData.region || "tu zona";
+    const cachedLocationJson = await AsyncStorage.getItem("last_valid_wifi_location");
+
+    if (!isWiFi && cachedLocationJson) {
+      const cached = JSON.parse(cachedLocationJson);
+      latitude = cached.latitude;
+      longitude = cached.longitude;
+      city = cached.city;
+      console.log("📡 [CLIMA] En 4G/5G: Usando última ubicación Wi-Fi conocida ->", city);
+    } 
+    else {
+      console.log("🌐 [CLIMA] En Wi-Fi o sin caché: Consultando IP...");
+      const locationReq = await fetch("https://ipapi.co/json/");
+      const locationData = await locationReq.json();
+
+      latitude = locationData.latitude;
+      longitude = locationData.longitude;
+      city = locationData.city || locationData.region || "tu zona";
+
+      if (latitude && longitude && isWiFi) {
+        await AsyncStorage.setItem(
+          "last_valid_wifi_location",
+          JSON.stringify({ latitude, longitude, city })
+        );
+      }
+    }
 
     if (!latitude || !longitude) {
       return { label: "", icon: "cloud" };
     }
 
-    // 2. Buscamos el clima con esas coordenadas en Open-Meteo
     const weatherUrl =
       `https://api.open-meteo.com/v1/forecast` +
       `?latitude=${latitude}` +
@@ -93,18 +119,9 @@ async function fetchCurrentWeather(): Promise<{ label: string; icon: keyof typeo
       `&timezone=auto`;
 
     const response = await fetch(weatherUrl);
+    if (!response.ok) throw new Error(`Weather HTTP ${response.status}`);
 
-    if (!response.ok) {
-      throw new Error(`Weather HTTP ${response.status}`);
-    }
-
-    const data = (await response.json()) as {
-      current?: {
-        temperature_2m?: number;
-        weather_code?: number;
-      };
-    };
-
+    const data = await response.json();
     const temperature = data.current?.temperature_2m;
     const code = data.current?.weather_code ?? -1;
 
@@ -117,7 +134,7 @@ async function fetchCurrentWeather(): Promise<{ label: string; icon: keyof typeo
       icon: getWeatherIcon(code),
     };
   } catch (error) {
-    console.log("Error buscando clima por IP:", error);
+    console.log("Error buscando clima:", error);
     return { label: "", icon: "cloud" };
   }
 }
@@ -316,20 +333,16 @@ export default function DigestScreen() {
   useEffect(() => {
     async function checkShouldRepromptPush() {
       try {
-        // A. Revisamos el sistema operativo: si ya las encendió ('granted') 
-        // o si las denegó en el cartel nativo de iOS/Android ('denied'), nos detenemos.
+
         const { status } = await Notifications.getPermissionsAsync();
         if (status === "granted" || status === "denied") return; 
 
-        // B. Buscamos la fecha de la última vez que tocó "Quizás más adelante"
         const lastDeclinedStr = await AsyncStorage.getItem("push_prompt_declined_date");
         if (!lastDeclinedStr) return;
 
-        // C. Calculamos cuántos días pasaron desde ese último rechazo
         const lastDeclinedDate = parseInt(lastDeclinedStr, 10);
         const daysPassed = (Date.now() - lastDeclinedDate) / (1000 * 60 * 60 * 24);
 
-        // 👈 SI PASARON 7 DÍAS EXACTOS (O MÁS), MOSTRAMOS LA TARJETA
         if (daysPassed >= 7) {
           setShowPushPrompt(true);
         }
@@ -341,18 +354,14 @@ export default function DigestScreen() {
     checkShouldRepromptPush();
   }, []);
 
-  // 2. SI ACEPTA: Disparamos el cartel nativo de Apple/Android
   const handleAcceptPushAgain = async () => {
     setShowPushPrompt(false);
     await registerForPushNotificationsAsync(true);
-    // Limpiamos la fecha porque el sistema operativo ya tomó el control del permiso
     await AsyncStorage.removeItem("push_prompt_declined_date");
   };
 
-  // 3. SI RECHAZA: ¡El secreto del bucle! Actualizamos la fecha a HOY
   const handleDeclinePushAgain = async () => {
     setShowPushPrompt(false);
-    // 👈 AL PISAR LA FECHA CON EL DÍA DE HOY, EL RELOJ DE 7 DÍAS VUELVE A EMPEZAR DESDE CERO
     await AsyncStorage.setItem("push_prompt_declined_date", Date.now().toString());
   };
 
@@ -377,10 +386,8 @@ export default function DigestScreen() {
   useEffect(() => {
     const checkTutorial = async () => {
       try {
-        // Buscamos si la bandera existe en el almacenamiento local
         const visto = await AsyncStorage.getItem("home_tutorial_visto");
         if (!visto) {
-          // Si nunca lo vio, encendemos el Modal flotante
           setShowTutorial(true);
         }
       } catch (err) {
@@ -388,7 +395,6 @@ export default function DigestScreen() {
       }
     };
 
-    // Solo mostramos el tutorial cuando las noticias ya terminaron de cargar
     if (!isLoading && data?.digest?.items?.length) {
       checkTutorial();
     }
@@ -397,7 +403,6 @@ export default function DigestScreen() {
   const closeTutorialModal = async () => {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      // Guardamos la marca en memoria para que no vuelva a molestar jamás
       await AsyncStorage.setItem("home_tutorial_visto", "true");
       setShowTutorial(false);
     } catch (err) {
@@ -515,9 +520,21 @@ export default function DigestScreen() {
     try {
       if (!userId) return;
 
-      // Si el audio ya existe y está cargado, manejamos pausa/play normal
+      // ========================================================
+      // 1. SI EL AUDIO YA ESTÁ CARGADO (PAUSA / PLAY)
+      // ========================================================
       if (sound) {
         if (playing) {
+          // 📊 ANALÍTICA: Capturamos el segundo exacto en el que pausaron
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            posthog.capture('audio_paused', {
+              position_seconds: Math.round(status.positionMillis / 1000),
+              duration_seconds: Math.round((status.durationMillis || 0) / 1000),
+              percentage_listened: status.durationMillis ? Math.round((status.positionMillis / status.durationMillis) * 100) : 0
+            });
+          }
+          
           await sound.pauseAsync();
           setPlaying(false);
         } else {
@@ -528,6 +545,9 @@ export default function DigestScreen() {
         return;
       }
 
+      // ========================================================
+      // 2. SI ES LA PRIMERA VEZ (GENERACIÓN NUEVA)
+      // ========================================================
       setLoadingAudio(true);
       posthog.capture('audio_play_clicked', { state: 'new_generation' });
       const res = await api.playDigest(userId);
@@ -550,7 +570,6 @@ export default function DigestScreen() {
       let currentTrackIndex = 0;
       let loadedNextSound: Audio.Sound | null = null;
 
-      // Función auxiliar para precargar un track en segundo plano
       const preloadTrack = async (index: number) => {
         if (index >= playlist.length) return null;
         try {
@@ -565,7 +584,6 @@ export default function DigestScreen() {
         }
       };
 
-      // Función principal de reproducción
       const playTrack = async (index: number, preloadedSoundObject: Audio.Sound | null) => {
         if (index >= playlist.length) {
           setPlaying(false);
@@ -576,11 +594,9 @@ export default function DigestScreen() {
 
         let activeSound: Audio.Sound;
 
-        // Si ya teníamos el audio precargado en memoria, lo usamos directamente (¡Gaps de 0ms!)
         if (preloadedSoundObject) {
           activeSound = preloadedSoundObject;
         } else {
-          // Fallback por si no llegó a precargarse a tiempo
           const { sound: loaded } = await Audio.Sound.createAsync(
             { uri: playlist[index] },
             { shouldPlay: false, volume: 1 }
@@ -592,33 +608,39 @@ export default function DigestScreen() {
         setPlaying(true);
         setLoadingAudio(false);
 
-        // Arrancamos la reproducción del track actual
+        // 📊 ANALÍTICA: Registramos qué track empezó a sonar (0=Saludo, 1=Noticia1, etc)
+        posthog.capture('audio_track_started', { 
+          track_index: index,
+          is_greeting: index === 0 
+        });
+
         await activeSound.playAsync();
 
-        // 🚀 LA MAGIA: Mientras suena este track, ya empezamos a descargar el SIGUIENTE
         const nextIndex = index + 1;
         loadedNextSound = await preloadTrack(nextIndex);
         setNextSound(loadedNextSound);
 
-        // Monitoreamos cuándo termina el track actual
         activeSound.setOnPlaybackStatusUpdate(async (status) => {
           if (!status.isLoaded) return;
 
           if (status.didJustFinish) {
-            // Limpiamos el audio viejo de la memoria
+            // 📊 ANALÍTICA: Registramos que terminó este track sin saltarlo
+            posthog.capture('audio_track_completed', { 
+              track_index: currentTrackIndex 
+            });
+
             await activeSound.unloadAsync().catch(() => { });
 
-            // Saltamos al siguiente pasándole el objeto que YA está descargado
             currentTrackIndex++;
             if (currentTrackIndex >= playlist.length) {
-              posthog.capture('audio_completed');
+              // 📊 ANALÍTICA: ¡Escuchó todo el resumen completo!
+              posthog.capture('audio_digest_fully_completed');
             }
             playTrack(currentTrackIndex, loadedNextSound);
           }
         });
       };
 
-      // Arrancamos cargando el primer audio de la lista (el saludo)
       playTrack(currentTrackIndex, null);
 
     } catch (error) {
@@ -642,8 +664,8 @@ export default function DigestScreen() {
         setSound(null);
         setPlaying(false);
       }
-      await api.refreshDigest(userId);
-      await refetch();
+      const newDigest = await api.refreshDigest(userId);
+      queryClient.setQueryData(["digest", userId], newDigest);
       await queryClient.invalidateQueries({ queryKey: ["shown-articles", userId] });
    } catch (error) {
       const message =
@@ -655,7 +677,7 @@ export default function DigestScreen() {
 
       setAlertConfig({
         visible: true,
-        title: isCooldown ? "Espera uno minuto" : "No se pudo actualizar",
+        title: isCooldown ? "Espera un minuto" : "No se pudo actualizar",
         message: message,
         icon: isCooldown ? "clock" : "alert-circle",
       });
@@ -695,7 +717,11 @@ export default function DigestScreen() {
       <View style={[s.header, { paddingTop: topPad }]}>
         <View style={s.brandSponsorRow}>
           <View style={s.brandRow}>
-            <Text style={[s.logoBlue, { color: colors.primary }]}>3</Text>
+            <Image
+              source={appLogo}
+              style={s.headerLogoIcon}
+              resizeMode="contain"
+            />
             <Text style={[s.logoText, { color: colors.text }]}>Minutos</Text>
           </View>
 
@@ -752,10 +778,8 @@ export default function DigestScreen() {
         scrollEventThrottle={400} // Para que no llame a la función mil veces por segundo
       >
         <DailyAgendaStrip
-          todayLabel={todayLabel}
           weatherLabel={weather.label}
           weatherIcon={weather.icon}
-          weatherLoading={weather.loading}
         />
 
         {(isLoading || refreshing) && (
@@ -775,23 +799,21 @@ export default function DigestScreen() {
 
         {isError && (
           <ErrorState
-            title="No pudimos cargar tu resumen"
             message={
               error instanceof Error
                 ? error.message
-                : "Ocurrió un error inesperado."
+                : "Ocurrió un error inesperado al cargar tu resumen."
             }
             onRetry={() => refetch()}
           />
         )}
 
-        {/* Agregamos el !refreshing para que esto desaparezca mientras carga */}
         {!isLoading && !refreshing &&
           !isError &&
           (!data?.digest?.items || data.digest.items.length === 0) && (
             <EmptyState
               title="Todavía no hay noticias"
-              message="Cuando tengamos artículos relevantes para tus temas, los vas a ver acá."
+              description="Cuando tengamos artículos relevantes para tus temas, los vas a ver acá."
             />
           )}
 
@@ -953,8 +975,8 @@ export default function DigestScreen() {
       />
       <PushSoftPrompt
         visible={showPushPrompt}
-        onAccept={handleAcceptPushSecondTime}
-        onDecline={handleDeclinePushSecondTime}
+        onAccept={handleAcceptPushAgain}
+        onDecline={handleDeclinePushAgain}
       />
     </View>
   );
@@ -991,7 +1013,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       marginRight: -1,
     },
     logoText: {
-      fontSize: 31,
+      fontSize: 27,
       fontFamily: "Inter_700Bold",
       marginLeft: -1,
     },
@@ -1261,5 +1283,13 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       color: "#fff",
       fontSize: 15,
       fontFamily: "Inter_700Bold",
+    },
+    headerLogoIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      overflow: "hidden", 
+      backgroundColor: "#FFFFFF", 
+      transform: [{ translateY: 8 }],
     },
   });

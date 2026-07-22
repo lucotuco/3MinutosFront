@@ -23,9 +23,11 @@ import { api } from "@/services/api";
 import { PushSoftPrompt } from "@/components/PushNotiPrompt";
 import { registerForPushNotificationsAsync } from "@/services/notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { usePostHog } from 'posthog-react-native';
 
 export default function OnboardingScreen() {
   const colors = useColors();
+  const posthog = usePostHog();
   const insets = useSafeAreaInsets();
   const { setSession, clearSession } = useUser();
 
@@ -87,20 +89,26 @@ export default function OnboardingScreen() {
       Alert.alert("Faltan datos", error);
       return;
     }
-    // Si todo está bien, mostramos el modal en vez de guardar directo
+    // 📊 ANALÍTICA: Completó el formulario base
+    posthog.capture('onboarding_form_completed', {
+      topics_chosen: topics.filter(t => t.trim())
+    });
+    
     setPushPromptVisible(true);
   };
 
-  const finalizeOnboarding = async (wantsPush: boolean) => {
+const finalizeOnboarding = async (wantsPush: boolean) => {
     setPushPromptVisible(false);
     try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     setLoading(true);
+
+    // 📊 ANALÍTICA: Respuesta al permiso
+    posthog.capture('onboarding_push_prompt_answered', { accepted: wantsPush });
 
     try {
       if (wantsPush) {
         await registerForPushNotificationsAsync(true);
       } else {
-        // 👈 MAGIA: Si dijo que no, guardamos la fecha y hora actual en la memoria
         await AsyncStorage.setItem("push_prompt_declined_date", Date.now().toString());
       }
 
@@ -116,6 +124,9 @@ export default function OnboardingScreen() {
         userId: result.user.id,
         authToken: result.authToken,
       });
+
+      // 📊 ANALÍTICA: Creación exitosa
+      posthog.capture('onboarding_fully_completed');
 
       router.replace("/(tabs)");
     } catch (e: unknown) {
@@ -161,7 +172,7 @@ export default function OnboardingScreen() {
               <View style={[s.stepNumber, { backgroundColor: colors.primary }]}>
                 <Text style={s.stepNumberTxt}>1</Text>
               </View>
-              <Text style={[s.stepTitle, { color: colors.text }]}>¿Cómo te llamás?</Text>
+              <Text style={[s.stepTitle, { color: colors.text }]}>¿Cómo quieres que te llamemos?</Text>
             </View>
             <TextInput
               value={name}
@@ -187,7 +198,7 @@ export default function OnboardingScreen() {
               <View style={[s.stepNumber, { backgroundColor: colors.primary }]}>
                 <Text style={s.stepNumberTxt}>2</Text>
               </View>
-              <Text style={[s.stepTitle, { color: colors.text }]}>Elegí tus temas</Text>
+              <Text style={[s.stepTitle, { color: colors.text }]}>Elegí tus Categorias</Text>
             </View>
             
             <Text style={[s.stepDesc, { color: colors.mutedText }]}>
@@ -229,7 +240,7 @@ export default function OnboardingScreen() {
             </View>
             
             <Text style={[s.stepDesc, { color: colors.mutedText }]}>
-              ¿A qué hora querés que la IA te envíe tu resumen todos los días?
+              ¿A qué hora querés que te enviemos tu resumen todos los días?
             </Text>
 
             <TouchableOpacity
