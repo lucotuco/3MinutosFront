@@ -117,10 +117,23 @@ export function DigestCard({ item, index }: DigestCardProps) {
   };
 
   const openSponsorUrl = async () => {
-    if (!currentSponsor.url) return;
+    /*if (!currentSponsor.url) return;
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (posthog) posthog.capture('sponsor_clicked', { sponsor_category: mainCatKey });
-    Linking.openURL(currentSponsor.url);
+    Linking.openURL(currentSponsor.url);*/
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (posthog) posthog.capture('sponsor_clicked', { sponsor_category: mainCatKey });
+      
+      const email = "lucasschlez@gmail.com";
+      const subject = encodeURIComponent(`Anunciar en 3 Minutos - ${mainCatKey}`);
+      const body = encodeURIComponent(`Hola Lucas,\n\nMe gustaría recibir información para pautar y anunciar en la sección "${mainCatKey}" de 3 Minutos.\n\n¡Gracias!`);
+      const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+      
+      await Linking.openURL(mailtoUrl);
+    } catch (error) {
+      console.log("Error al abrir aplicación de correo:", error);
+    }
   };
 
   return (

@@ -44,9 +44,19 @@ type WeatherState = {
   icon: keyof typeof Feather.glyphMap;
   loading: boolean;
 };
-const handlePress = () => {
-
-  Linking.openURL('https://www.bancodecomercio.com.ar/home');
+const handlePress = async () => {
+  try {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const email = "lucasschlez@gmail.com";
+    const subject = encodeURIComponent("Anunciar en 3 Minutos");
+    const body = encodeURIComponent("Hola Lucas,\n\nMe gustaría recibir información y tarifas para anunciar mi marca/producto en 3 Minutos.\n\n¡Gracias!");
+    const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+    
+    await Linking.openURL(mailtoUrl);
+  } catch (error) {
+    console.log("Error al abrir aplicación de correo:", error);
+  }
 };
 
 function formatTodayLabel() {
@@ -734,13 +744,13 @@ export default function DigestScreen() {
               },
             ]}
           >
-            <TouchableOpacity onPress={handlePress}>
+            <TouchableOpacity onPress={handlePress}activeOpacity={0.8}>
               {/*<Image
                 source={sponsorLogo}
                 style={s.sponsorLogoInline}
                 resizeMode="contain"
               />*/}
-              <Text style={[{ color: colors.text, fontSize:18,textAlign: "center", }]}>Queres anunciar aqui?</Text>
+              <Text style={[{ color: colors.text, fontSize: 14, fontFamily: "Inter_600SemiBold", textAlign: "center" }]}>Queres anunciar aqui?</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1013,7 +1023,7 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       marginRight: -1,
     },
     logoText: {
-      fontSize: 27,
+      fontSize: 22,
       fontFamily: "Inter_700Bold",
       marginLeft: -1,
     },
