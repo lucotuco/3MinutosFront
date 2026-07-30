@@ -341,6 +341,12 @@ async getNewsAgentClientSecret(
     return mapPreferences(raw);
   },
 
+  async deleteAccount(userId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(`/users/${userId}`, {
+      method: "DELETE",
+    });
+  },
+
   async updatePreferences(
     userId: string,
     next: Omit<UserPreferences, "id">

@@ -3,18 +3,19 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    Text,
-    TouchableOpacity,
-    View,
-    Linking,
-    TextInput,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TouchableOpacity,
+  View,
+  Linking,
+  TextInput,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -26,6 +27,7 @@ import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
 import { api } from "@/services/api";
+import { router } from "expo-router";
 
 function parseDeliveryTime(value: string) {
   const match = /^(\d{2}):(\d{2})$/.exec(value);
@@ -50,6 +52,8 @@ export default function ProfileScreen() {
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const deliveryTime = useMemo(
     () => `${selectedHour}:${selectedMinute}`,
@@ -82,7 +86,7 @@ export default function ProfileScreen() {
 
   const markDirty = () => setIsDirty(true);
 
- const handleSave = async () => {
+  const handleSave = async () => {
     if (!userId) return;
     if (!name.trim() || topics.filter((t) => t.trim()).length < 3) {
       Alert.alert("Campos requeridos", "Nombre y 3 tópicos son obligatorios.");
@@ -107,7 +111,7 @@ export default function ProfileScreen() {
         try {
           await api.refreshDigest(userId);
           if (nameChanged) {
-            api.playDigest(userId).catch(() => {});
+            api.playDigest(userId).catch(() => { });
           }
         } catch (err) {
           console.log("Error al refrescar digest tras cambiar perfil:", err);
@@ -117,7 +121,7 @@ export default function ProfileScreen() {
       await queryClient.invalidateQueries({ queryKey: ["preferences", userId] });
       await queryClient.invalidateQueries({ queryKey: ["digest", userId] });
       setIsDirty(false);
-      
+
       setSaveSuccess(true);
       setTimeout(() => {
         setSaveSuccess(false);
@@ -131,25 +135,32 @@ export default function ProfileScreen() {
     }
   };
 
-  const confirmLogout = () => {
-    Alert.alert("Cerrar sesion", "Se borrará tu usuario guardado localmente. Continuar?", [
-      { text: "Cancelar", style: "cancel" },
-      { text: "Salir", style: "destructive", onPress: () => clearUserId() },
-    ]);
+  const handleDeleteAccount = async () => {
+    if (!userId) return;
+    setIsDeleting(true);
+    try {
+      await api.deleteAccount(userId);
+    } catch (error) {
+      console.log("Error al eliminar la cuenta en el servidor", error);
+    }
+    await clearUserId();
+    setDeleteModalVisible(false);
+    setIsDeleting(false);
+    router.replace("/onboarding");
   };
 
   const handleFeedback = async () => {
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
+
       const email = "lucasschlez@gmail.com"; // 👈 Cambiá esto por tu dirección real de mail
       const subject = encodeURIComponent("Feedback - App 3 Minutos");
-      
+
       // Le dejamos pre-configurado el ID del usuario abajo de todo para que no lo borre
       const body = encodeURIComponent(`[Escribí tu feedback acá]\n\n\n\n--- Info técnica (No borrar) ---\nUsuario ID: ${userId || 'N/A'}\nPlataforma: ${Platform.OS}`);
-      
+
       const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
-      
+
       await Linking.openURL(mailtoUrl);
     } catch (error) {
       Alert.alert("Error", "No se pudo abrir la aplicación de correo en tu celular.");
@@ -301,11 +312,11 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={[s.logoutBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-              onPress={confirmLogout}
+              onPress={() => setDeleteModalVisible(true)}
               activeOpacity={0.8}
             >
-              <Feather name="log-out" size={16} color={colors.destructive} />
-              <Text style={[s.logoutText, { color: colors.destructive }]}>Cerrar sesion</Text>
+              <Feather name="trash-2" size={16} color={colors.destructive} />
+              <Text style={[s.logoutText, { color: colors.destructive }]}>Eliminar cuenta</Text>
             </TouchableOpacity>
 
             {/* Sección Legal */}
@@ -315,7 +326,7 @@ export default function ProfileScreen() {
                   Privacidad
                 </Text>
               </TouchableOpacity>
-              
+
               <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>•</Text>
 
               <TouchableOpacity onPress={openTerms} activeOpacity={0.7}>
@@ -338,7 +349,7 @@ export default function ProfileScreen() {
           setSelectedMinute(m || "00");
           setTimeModalVisible(false);
           markDirty();
-          try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+          try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch { }
         }}
       />
 
@@ -357,6 +368,42 @@ export default function ProfileScreen() {
           markDirty();
         }}
       />
+
+      <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={() => setDeleteModalVisible(false)}>
+        <View style={s.modalOverlay}>
+          <View style={[s.alertCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+
+            <View style={[s.alertIconRing, { backgroundColor: colors.destructive + "15" }]}>
+              <Feather name="alert-triangle" size={26} color={colors.destructive} />
+            </View>
+
+            <Text style={[s.alertTitle, { color: colors.foreground }]}>Eliminar cuenta</Text>
+            <Text style={[s.alertMessage, { color: colors.mutedForeground }]}>
+              ¿Estás seguro de que querés eliminar tu cuenta de forma permanente? Se borrarán tus preferencias y tu historial. Esta acción no se puede deshacer.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleDeleteAccount}
+              disabled={isDeleting}
+              style={[s.alertBtnDestructive, { backgroundColor: colors.destructive }]}
+            >
+              {isDeleting ? <ActivityIndicator color="#fff" /> : <Text style={s.alertBtnDestructiveText}>Sí, eliminar cuenta</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => setDeleteModalVisible(false)}
+              disabled={isDeleting}
+              style={s.alertBtnCancel}
+            >
+              <Text style={[s.alertBtnCancelText, { color: colors.mutedForeground }]}>Cancelar</Text>
+            </TouchableOpacity>
+
+          </View>
+        </View>
+      </Modal>
+
     </>
   );
 }
@@ -481,8 +528,17 @@ const makeStyles = (colors: ReturnType<typeof useColors>) =>
       gap: 8,
       marginTop: 10,
     },
-    feedbackText: { 
-      fontSize: 15, 
-      fontFamily: "Inter_600SemiBold" 
+    feedbackText: {
+      fontSize: 15,
+      fontFamily: "Inter_600SemiBold"
     },
+    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.65)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
+    alertCard: { width: "100%", maxWidth: 360, borderWidth: 1, borderRadius: 24, padding: 24, alignItems: "center", gap: 14, shadowColor: "#000", shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.3, shadowRadius: 20, elevation: 8 },
+    alertIconRing: { width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    alertTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+    alertMessage: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20, marginBottom: 10 },
+    alertBtnDestructive: { width: "100%", borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+    alertBtnDestructiveText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    alertBtnCancel: { width: "100%", paddingVertical: 10, alignItems: "center" },
+    alertBtnCancelText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   });

@@ -19,8 +19,9 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos tu ubicación para mostrar la temperatura actual de tu zona.",
         "NSUserNotificationUsageDescription": "Usamos notificaciones para avisarte cuando tu resumen diario está listo.",
-        "NSMicrophoneUsageDescription": "3 Minutos usa el micrófono para que puedas hablar con el agente de noticias.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCalendarsUsageDescription": "3 Minutos necesita acceso a tu calendario para mostrarte tus próximos eventos y reuniones del día junto a tu resumen de noticias.",
+        "NSCalendarsFullAccessUsageDescription": "3 Minutos necesita acceso a tu calendario para leer y mostrarte tus próximos eventos del día en la pantalla principal."
       }
     },
     "android": {
