@@ -2,8 +2,7 @@
 
 Welcome to the frontend repository for **3Minutos**, a mobile application designed to deliver personalized, 3-minute news digests to users. Built with React Native and Expo, this app allows users to select their favorite news topics, set a delivery time, and read or listen to their AI-curated daily summaries.
 
-> **Reference File:** `lucotuco-3minutosfront-8a5edab282632443.txt`
-
+🔗 This project uses a separate API. [Click here to view the Backend code]([https://github.com/tu-usuario/tu-repo-del-backend](https://github.com/lucotuco/3Minutos-back))
 ---
 
 ## 🚀 Key Features
