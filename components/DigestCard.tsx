@@ -1,17 +1,29 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Image, StyleSheet, Text, TouchableOpacity, View,Share } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
-import { DigestItem } from "@/services/api";
+import {
+  ArticleVote,
+  DigestItem,
+  VOTE_DOWN_REASONS,
+  VOTE_DOWN_REASON_LABELS,
+  VoteDownReason,
+} from "@/services/api";
 import { CATEGORIES } from "@/constants/categories";
 import { usePostHog } from 'posthog-react-native';
 
 interface DigestCardProps {
   item: DigestItem;
   index: number;
+  /** El voto que ya tiene esta nota, traído del backend. Así los pulgares siguen marcados al reabrir la app. */
+  vote?: ArticleVote | null;
+  /** Guarda o cambia el voto. Si no viene, el pulgar solo se manda a la analítica. */
+  onVote?: (articleId: string, vote: 1 | -1, reason: VoteDownReason | null) => Promise<void>;
+  /** Saca el voto. */
+  onRemoveVote?: (articleId: string) => Promise<void>;
 }
 
 const rankColors = ["#EF4444", "#3B82F6", "#22C55E"];
@@ -32,13 +44,22 @@ const SPONSORS_BY_TOPIC: Record<string, SponsorData> = {
   'Default': { image: require('../assets/images/banco-comercio.png'), url: 'https://www.bancodecomercio.com.ar/home' }
 };
 
-export function DigestCard({ item, index }: DigestCardProps) {
+export function DigestCard({ item, index, vote = null, onVote, onRemoveVote }: DigestCardProps) {
   const colors = useColors();
   const posthog = usePostHog();
-  
+
   const [expanded, setExpanded] = useState(false);
   const [expandTime, setExpandTime] = useState<number | null>(null);
-  const [feedbackGiven, setFeedbackGiven] = useState<'up' | 'down' | null>(null);
+
+  // El voto vive en el backend: acá solo se guarda una copia para que el botón responda al instante. Se
+  // resincroniza cuando llega el del servidor, y se revierte si el guardado falla.
+  const [localVote, setLocalVote] = useState<ArticleVote | null>(vote);
+  const [askingReason, setAskingReason] = useState(false);
+  const [savingVote, setSavingVote] = useState(false);
+
+  useEffect(() => {
+    setLocalVote(vote);
+  }, [vote?.vote, vote?.reason, item.articleId]);
 
   const rankColor = rankColors[index % rankColors.length];
   const title = item.neutralTitle || item.title || "Sin título";
@@ -102,18 +123,60 @@ export function DigestCard({ item, index }: DigestCardProps) {
     });
   };
 
-  const handleFeedback = async (type: 'up' | 'down') => {
-    if (feedbackGiven) return; 
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setFeedbackGiven(type);
+  const reportarAnalitica = (vote: 1 | -1 | null, reason: VoteDownReason | null) => {
+    if (!posthog) return;
+    posthog.capture('article_feedback', {
+      topic: item.topic,
+      vote: vote === 1 ? 'up' : vote === -1 ? 'down' : 'removed',
+      reason: reason ?? null,
+      article_id: item.articleId || null,
+    });
+  };
 
-    if (posthog) {
-      posthog.capture('article_feedback', {
-        topic: item.topic,
-        vote: type,
-        article_id: item.articleId || null
-      });
+  /**
+   * Guarda el voto en el backend (y lo reporta a la analítica). El pulgar se marca al instante y se revierte si
+   * el guardado falla: mostrarlo como votado cuando no se guardó sería peor que no mostrar nada.
+   */
+  const guardarVoto = async (next: ArticleVote | null, reason: VoteDownReason | null) => {
+    const anterior = localVote;
+    setLocalVote(next);
+    setSavingVote(true);
+
+    try {
+      if (!item.articleId) return; // sin id no se puede atar el voto a una nota; queda solo en la analítica
+      if (next === null) await onRemoveVote?.(item.articleId);
+      else await onVote?.(item.articleId, next.vote, reason);
+    } catch {
+      setLocalVote(anterior); // el voto no se guardó: el botón no puede decir que sí
+      setAskingReason(false);
+      return;
+    } finally {
+      setSavingVote(false);
     }
+
+    reportarAnalitica(next?.vote ?? null, reason);
+  };
+
+  const handleFeedback = async (type: 1 | -1) => {
+    if (savingVote) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Tocar el pulgar que ya estaba marcado lo saca; tocar el otro, cambia el voto.
+    if (localVote?.vote === type) {
+      setAskingReason(false);
+      await guardarVoto(null, null);
+      return;
+    }
+
+    setAskingReason(type === -1);
+    await guardarVoto({ articleId: item.articleId || '', vote: type, reason: null }, null);
+  };
+
+  const handleReason = async (reason: VoteDownReason) => {
+    if (savingVote) return;
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAskingReason(false);
+    await guardarVoto({ articleId: item.articleId || '', vote: -1, reason }, reason);
   };
 
   const openSponsorUrl = async () => {
@@ -207,22 +270,95 @@ export function DigestCard({ item, index }: DigestCardProps) {
               </Text>
             </TouchableOpacity>
 
-            {/* 👇 NUEVO: BLOQUE DE FEEDBACK 👇 */}
+            {/* 👇 BLOQUE DE FEEDBACK: el pulgar se puede cambiar o sacar, y el de abajo pregunta por qué 👇 */}
             <View style={[styles.feedbackRow, { borderTopColor: colors.border }]}>
-              <Text style={[styles.feedbackText, { color: colors.mutedForeground }]}>
-                {feedbackGiven ? "¡Gracias por tu opinión!" : "¿Te sirvió esta noticia?"}
+              <Text style={[styles.feedbackText, { color: colors.mutedForeground }]} numberOfLines={2}>
+                {localVote === null
+                  ? "¿Te sirvió esta noticia?"
+                  : localVote.vote === 1
+                    ? "¡Gracias por tu opinión!"
+                    : localVote.reason
+                      ? `Anotado: ${VOTE_DOWN_REASON_LABELS[localVote.reason].toLowerCase()}`
+                      : "¡Gracias por tu opinión!"}
               </Text>
-              {!feedbackGiven && (
-                <View style={styles.feedbackActions}>
-                  <TouchableOpacity activeOpacity={0.7} onPress={() => handleFeedback('up')} style={[styles.feedbackBtn, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    <Feather name="thumbs-up" size={14} color={colors.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity activeOpacity={0.7} onPress={() => handleFeedback('down')} style={[styles.feedbackBtn, { backgroundColor: colors.background, borderColor: colors.border }]}>
-                    <Feather name="thumbs-down" size={14} color={colors.destructive} />
+
+              <View style={styles.feedbackActions}>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  disabled={savingVote}
+                  accessibilityRole="button"
+                  accessibilityLabel="Me sirvió esta noticia"
+                  accessibilityState={{ selected: localVote?.vote === 1 }}
+                  onPress={() => handleFeedback(1)}
+                  style={[
+                    styles.feedbackBtn,
+                    {
+                      backgroundColor: localVote?.vote === 1 ? colors.primary + "22" : colors.background,
+                      borderColor: localVote?.vote === 1 ? colors.primary : colors.border,
+                      opacity: savingVote ? 0.5 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="thumbs-up" size={14} color={colors.primary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  disabled={savingVote}
+                  accessibilityRole="button"
+                  accessibilityLabel="No me sirvió esta noticia"
+                  accessibilityState={{ selected: localVote?.vote === -1 }}
+                  onPress={() => handleFeedback(-1)}
+                  style={[
+                    styles.feedbackBtn,
+                    {
+                      backgroundColor: localVote?.vote === -1 ? colors.destructive + "22" : colors.background,
+                      borderColor: localVote?.vote === -1 ? colors.destructive : colors.border,
+                      opacity: savingVote ? 0.5 : 1,
+                    },
+                  ]}
+                >
+                  <Feather name="thumbs-down" size={14} color={colors.destructive} />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* El motivo del pulgar abajo: es lo que dice qué parte del motor hay que corregir. Salteable. */}
+            {askingReason && localVote?.vote === -1 && (
+              <View style={styles.reasonBlock}>
+                <View style={styles.reasonHeader}>
+                  <Text style={[styles.reasonTitle, { color: colors.mutedForeground }]}>¿Por qué?</Text>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Saltear el motivo"
+                    onPress={() => setAskingReason(false)}
+                    hitSlop={8}
+                  >
+                    <Text style={[styles.reasonSkip, { color: colors.mutedForeground }]}>Saltear</Text>
                   </TouchableOpacity>
                 </View>
-              )}
-            </View>
+                <View style={styles.reasonChips}>
+                  {VOTE_DOWN_REASONS.map((reason) => (
+                    <TouchableOpacity
+                      key={reason}
+                      activeOpacity={0.7}
+                      disabled={savingVote}
+                      accessibilityRole="button"
+                      onPress={() => handleReason(reason)}
+                      style={[
+                        styles.reasonChip,
+                        { borderColor: colors.border, backgroundColor: colors.background, opacity: savingVote ? 0.5 : 1 },
+                      ]}
+                    >
+                      <Text style={[styles.reasonChipText, { color: colors.foreground }]}>
+                        {VOTE_DOWN_REASON_LABELS[reason]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
           </View>
         ) : null}
@@ -249,10 +385,17 @@ const styles = StyleSheet.create({
   summary: { fontSize: 13, lineHeight: 17, fontFamily: "Inter_400Regular" },
   
   // Estilos del Feedback
-  feedbackRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1 },
-  feedbackText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  feedbackRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, paddingTop: 10, borderTopWidth: 1, gap: 8 },
+  feedbackText: { fontSize: 12, fontFamily: "Inter_500Medium", flexShrink: 1 },
   feedbackActions: { flexDirection: "row", gap: 8 },
   feedbackBtn: { padding: 6, borderRadius: 8, borderWidth: 1 },
+  reasonBlock: { marginTop: 8, gap: 6 },
+  reasonHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reasonTitle: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
+  reasonSkip: { fontSize: 11, fontFamily: "Inter_500Medium", textDecorationLine: "underline" },
+  reasonChips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  reasonChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1 },
+  reasonChipText: { fontSize: 11, fontFamily: "Inter_500Medium" },
   shareButton: {
     alignSelf: "flex-start",
     flexDirection: "row",

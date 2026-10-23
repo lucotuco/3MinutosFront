@@ -28,7 +28,7 @@ import { ErrorState } from "@/components/ErrorState";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
-import { api } from "@/services/api";
+import { api, ArticleVote, VoteDownReason } from "@/services/api";
 import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { getTodayEfemeride } from "@/constants/efemerides";
 import { useQueryClient } from "@tanstack/react-query";
@@ -333,6 +333,38 @@ export default function DigestScreen() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
   });
+
+  // Los votos ya emitidos, para que los pulgares sigan marcados al reabrir la app. Si esta consulta falla, los
+  // botones arrancan vacíos pero se puede votar igual: no es motivo para romper la pantalla.
+  const { data: votes } = useQuery({
+    queryKey: ["article-votes", userId],
+    queryFn: () => api.getArticleVotes(userId!),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const votesByArticle = new Map<string, ArticleVote>(
+    (votes ?? []).map((vote) => [vote.articleId, vote])
+  );
+
+  /** Guarda el voto y deja la lista de votos al día, sin recargar el digest. */
+  const handleVote = useCallback(
+    async (articleId: string, vote: 1 | -1, reason: VoteDownReason | null) => {
+      if (!userId) return;
+      await api.voteArticle(userId, { articleId, vote, reason });
+      await queryClient.invalidateQueries({ queryKey: ["article-votes", userId] });
+    },
+    [userId, queryClient]
+  );
+
+  const handleRemoveVote = useCallback(
+    async (articleId: string) => {
+      if (!userId) return;
+      await api.deleteArticleVote(userId, articleId);
+      await queryClient.invalidateQueries({ queryKey: ["article-votes", userId] });
+    },
+    [userId, queryClient]
+  );
 
   useEffect(() => {
     if (error) {
@@ -858,6 +890,9 @@ export default function DigestScreen() {
                   key={`digest-item-${item.articleId || item.url || "id"}-${i}`}
                   item={item}
                   index={i}
+                  vote={item.articleId ? votesByArticle.get(item.articleId) ?? null : null}
+                  onVote={handleVote}
+                  onRemoveVote={handleRemoveVote}
                 />
               ))}
 
