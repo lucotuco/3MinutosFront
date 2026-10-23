@@ -57,6 +57,30 @@ export type DigestResponse = {
   };
 };
 
+/** Motivos del pulgar ABAJO. El de arriba va pelado a propósito (ver README del backend). */
+export const VOTE_DOWN_REASONS = [
+  "aburrida",
+  "no_es_del_tema",
+  "ya_la_sabia",
+  "vieja",
+] as const;
+
+export type VoteDownReason = (typeof VOTE_DOWN_REASONS)[number];
+
+/** Etiquetas que ve el usuario para cada motivo. */
+export const VOTE_DOWN_REASON_LABELS: Record<VoteDownReason, string> = {
+  aburrida: "Aburrida",
+  no_es_del_tema: "No es del tema",
+  ya_la_sabia: "Ya la sabía",
+  vieja: "Vieja",
+};
+
+export type ArticleVote = {
+  articleId: string;
+  vote: 1 | -1;
+  reason: VoteDownReason | null;
+};
+
 export type ShownArticle = {
   articleId?: string;
   title?: string;
@@ -321,21 +345,6 @@ export const api = {
       authToken: created.authToken,
     };
   },
-  
-async getNewsAgentClientSecret(
-  userId: string
-): Promise<{
-  ok: boolean;
-  clientSecret: string;
-  model: string;
-  digestDate: string | null;
-  contextSource: string | null;
-}> {
-  return request(`/users/${userId}/news-agent/client-secret`, {
-    method: "GET",
-  });
-},
-
   async getPreferences(userId: string): Promise<UserPreferences> {
     const raw = await request(`/users/preferences/${userId}`);
     return mapPreferences(raw);
@@ -409,5 +418,47 @@ async getNewsAgentClientSecret(
     return request<{ success: boolean; playlist: string[] }>(`/users/${userId}/digest/play`, {
       method: "POST",
     });
-  }
+  },
+
+  /**
+   * El pulgar de una nota. Se manda solo la nota, el pulgar y el motivo: el contexto de la decisión del motor
+   * (edad, importancia, puntaje, zona) lo completa el backend desde el digest que ya tiene guardado.
+   * Votar de nuevo la misma nota cambia el voto, no suma otro.
+   */
+  async voteArticle(
+    userId: string,
+    payload: { articleId: string; vote: 1 | -1; reason?: VoteDownReason | null }
+  ): Promise<{ ok: boolean; vote: ArticleVote }> {
+    return request<{ ok: boolean; vote: ArticleVote }>(`/users/${userId}/digest/vote`, {
+      method: "POST",
+      body: JSON.stringify({
+        articleId: payload.articleId,
+        vote: payload.vote,
+        // el backend rechaza un motivo junto a un pulgar arriba
+        reason: payload.vote === -1 ? payload.reason ?? null : null,
+      }),
+    });
+  },
+
+  /** Saca el voto de una nota (el usuario toca de nuevo el pulgar que tenía marcado). */
+  async deleteArticleVote(userId: string, articleId: string): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>(
+      `/users/${userId}/digest/vote/${encodeURIComponent(articleId)}`,
+      { method: "DELETE" }
+    );
+  },
+
+  /** Los votos ya emitidos, para pintar los pulgares al abrir el digest. */
+  async getArticleVotes(userId: string): Promise<ArticleVote[]> {
+    const raw = await request<{ items?: any[] }>(`/users/${userId}/digest/votes`);
+    const items = Array.isArray(raw?.items) ? raw.items : [];
+
+    return items
+      .filter((item) => item?.articleId && (item.vote === 1 || item.vote === -1))
+      .map((item) => ({
+        articleId: String(item.articleId),
+        vote: item.vote as 1 | -1,
+        reason: VOTE_DOWN_REASONS.includes(item.reason) ? (item.reason as VoteDownReason) : null,
+      }));
+  },
 };

@@ -28,13 +28,14 @@ import { ErrorState } from "@/components/ErrorState";
 import { useUser } from "@/context/UserContext";
 import { useColors } from "@/hooks/useColors";
 import { useHandleUserNotFound } from "@/hooks/useHandleUserNotFound";
-import { api } from "@/services/api";
+import { api, ArticleVote, VoteDownReason } from "@/services/api";
 import sponsorLogo from "../../assets/images/banco-comercio.png";
 import { getTodayEfemeride } from "@/constants/efemerides";
 import { useQueryClient } from "@tanstack/react-query";
 import { CustomAlertModal } from "@/components/CustomAlertModal";
 import * as Notifications from "expo-notifications";
 import { PushSoftPrompt } from "@/components/PushNotiPrompt";
+import { VotosPrompt } from "@/components/VotosPrompt";
 import { registerForPushNotificationsAsync } from "@/services/notifications";
 import * as Network from "expo-network";
 import appLogo from "../../assets/images/icon.png";
@@ -306,6 +307,7 @@ export default function DigestScreen() {
   const posthog = usePostHog();
   const [showTutorial, setShowTutorial] = useState(false);
   const [showPushPrompt, setShowPushPrompt] = useState(false);
+  const [showVotosPrompt, setShowVotosPrompt] = useState(false);
 
   const [alertConfig, setAlertConfig] = useState<{
       visible: boolean;
@@ -326,6 +328,7 @@ export default function DigestScreen() {
   });
 
   const lastMarkedKeyRef = useRef<string | null>(null);
+  const votosPromptHandledRef = useRef(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["digest", userId],
@@ -333,6 +336,38 @@ export default function DigestScreen() {
     enabled: !!userId,
     staleTime: 1000 * 60 * 5,
   });
+
+  // Los votos ya emitidos, para que los pulgares sigan marcados al reabrir la app. Si esta consulta falla, los
+  // botones arrancan vacíos pero se puede votar igual: no es motivo para romper la pantalla.
+  const { data: votes } = useQuery({
+    queryKey: ["article-votes", userId],
+    queryFn: () => api.getArticleVotes(userId!),
+    enabled: !!userId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const votesByArticle = new Map<string, ArticleVote>(
+    (votes ?? []).map((vote) => [vote.articleId, vote])
+  );
+
+  /** Guarda el voto y deja la lista de votos al día, sin recargar el digest. */
+  const handleVote = useCallback(
+    async (articleId: string, vote: 1 | -1, reason: VoteDownReason | null) => {
+      if (!userId) return;
+      await api.voteArticle(userId, { articleId, vote, reason });
+      await queryClient.invalidateQueries({ queryKey: ["article-votes", userId] });
+    },
+    [userId, queryClient]
+  );
+
+  const handleRemoveVote = useCallback(
+    async (articleId: string) => {
+      if (!userId) return;
+      await api.deleteArticleVote(userId, articleId);
+      await queryClient.invalidateQueries({ queryKey: ["article-votes", userId] });
+    },
+    [userId, queryClient]
+  );
 
   useEffect(() => {
     if (error) {
@@ -417,6 +452,44 @@ export default function DigestScreen() {
       setShowTutorial(false);
     } catch (err) {
       setShowTutorial(false);
+    }
+  };
+
+  /**
+   * Aviso de los pulgares, UNA sola vez.
+   *
+   * Se exige que el tutorial ya esté visto en lugar de mirar `showTutorial`: ese estado se prende en otro efecto
+   * cuando llega el digest, así que en la primera pasada todavía está en false y se superpondrían dos modales. De
+   * esta forma el que entra por primera vez ve el tutorial, y el aviso de los pulgares le aparece la vez siguiente.
+   */
+  useEffect(() => {
+    const checkVotosPrompt = async () => {
+      try {
+        // Una vez mostrado en esta sesión no se vuelve a evaluar: el digest se refresca y este efecto se
+        // repite, y la marca en disco se escribe recién al cerrarlo.
+        if (votosPromptHandledRef.current) return;
+        if (await AsyncStorage.getItem("votos_prompt_visto")) return;
+        if (!(await AsyncStorage.getItem("home_tutorial_visto"))) return;
+        votosPromptHandledRef.current = true;
+        setShowVotosPrompt(true);
+      } catch (err) {
+        console.log("Error leyendo el aviso de votos", err);
+      }
+    };
+
+    // Sin noticias no hay nada que puntuar, y no se pisa con el pedido de notificaciones.
+    if (!isLoading && data?.digest?.items?.length && !showPushPrompt) {
+      checkVotosPrompt();
+    }
+  }, [isLoading, data, showPushPrompt]);
+
+  const closeVotosPrompt = async () => {
+    setShowVotosPrompt(false);
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await AsyncStorage.setItem("votos_prompt_visto", "true");
+    } catch (err) {
+      console.log("Error guardando el aviso de votos", err);
     }
   };
 
@@ -858,6 +931,9 @@ export default function DigestScreen() {
                   key={`digest-item-${item.articleId || item.url || "id"}-${i}`}
                   item={item}
                   index={i}
+                  vote={item.articleId ? votesByArticle.get(item.articleId) ?? null : null}
+                  onVote={handleVote}
+                  onRemoveVote={handleRemoveVote}
                 />
               ))}
 
@@ -988,6 +1064,8 @@ export default function DigestScreen() {
         onAccept={handleAcceptPushAgain}
         onDecline={handleDeclinePushAgain}
       />
+
+      <VotosPrompt visible={showVotosPrompt} onClose={closeVotosPrompt} />
     </View>
   );
 }
