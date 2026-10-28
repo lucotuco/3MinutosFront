@@ -40,3 +40,8 @@ export async function clearStoredSession(): Promise<void> {
     AsyncStorage.removeItem(AUTH_TOKEN_KEY),
   ]);
 }
+
+/** Guarda un token renovado por el backend, sin tocar el id de usuario. */
+export async function setStoredAuthToken(authToken: string): Promise<void> {
+  await AsyncStorage.setItem(AUTH_TOKEN_KEY, authToken);
+}

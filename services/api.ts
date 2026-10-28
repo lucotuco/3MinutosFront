@@ -105,6 +105,32 @@ function setAuthToken(token: string | null) {
   authToken = token;
 }
 
+/**
+ * El backend renueva el token de sesión en el header X-Auth-Token cuando el que mandamos tiene más de unos días
+ * (middleware/auth.js del backend). Sin esto el token vence a los 180 días y, como no hay login, el usuario pierde
+ * la cuenta. UserContext se suscribe para guardarlo en el teléfono.
+ */
+const REFRESHED_TOKEN_HEADER = "x-auth-token";
+type TokenListener = (token: string) => void;
+let tokenListener: TokenListener | null = null;
+
+function onTokenRefreshed(listener: TokenListener | null) {
+  tokenListener = listener;
+}
+
+function takeRefreshedToken(response: Response, sentToken: string | null) {
+  const fresh = response.headers?.get?.(REFRESHED_TOKEN_HEADER)?.trim();
+  // Solo si el pedido salió con la sesión actual: una respuesta tardía de una sesión borrada no la revive.
+  if (!fresh || !sentToken || sentToken !== authToken || fresh === authToken) return;
+
+  authToken = fresh;
+  try {
+    tokenListener?.(fresh);
+  } catch {
+    // guardar el token es lo mejor posible: en memoria ya quedó el nuevo
+  }
+}
+
 const rawApiBaseUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 
 if (!rawApiBaseUrl) {
@@ -136,19 +162,22 @@ async function request<T = unknown>(
   init?: RequestInit
 ): Promise<T> {
   let response: Response;
+  const sentToken = authToken;
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
-        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        ...(sentToken ? { Authorization: `Bearer ${sentToken}` } : {}),
         ...(init?.headers ?? {}),
       },
     });
   } catch {
     throw new Error("No se pudo conectar al backend.");
   }
+
+  takeRefreshedToken(response, sentToken);
 
   const text = await response.text();
   let data: any = null;
@@ -308,6 +337,7 @@ function mapShownArticle(raw: any): ShownArticle {
 
 export const api = {
   setAuthToken,
+  onTokenRefreshed,
 
   async createPreferences(
     prefs: Omit<UserPreferences, "id">

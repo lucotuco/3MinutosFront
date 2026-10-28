@@ -14,6 +14,7 @@ import { registerForPushNotificationsAsync } from "@/services/notifications";
 import {
   clearStoredSession,
   getStoredSession,
+  setStoredAuthToken,
   setStoredSession,
 } from "@/services/session";
 import { usePostHog } from 'posthog-react-native';
@@ -77,6 +78,21 @@ export function UserProvider({ children }: Props) {
     };
 
     load();
+  }, []);
+
+  // El backend renueva el token cada tanto (ver services/api.ts): se guarda en el teléfono para que la sesión
+  // no venza nunca mientras se use la app. No se toca el estado de React a propósito: cambiarlo volvería a
+  // registrar el push token sin necesidad.
+  useEffect(() => {
+    api.onTokenRefreshed((token) => {
+      setStoredAuthToken(token).catch((err) => {
+        if (isDev) {
+          console.warn("No se pudo guardar el token renovado", err);
+        }
+      });
+    });
+
+    return () => api.onTokenRefreshed(null);
   }, []);
 
   useEffect(() => {
